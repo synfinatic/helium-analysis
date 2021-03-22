@@ -16,34 +16,34 @@ type ChallengeResponse struct {
 }
 
 type Challenges struct {
-	Type               string  `json:type`
-	Time               int     `json:time`
-	Secret             string  `json:secret`
-	Path               []Path  `json:path`
-	OnionKeyHash       string  `json:onion_key_hash`
-	Height             int     `json:height`
-	Hash               string  `json:hash`
-	Fee                int     `json:fee`
-	ChallengerOwner    string  `json:challenger_owner`
-	ChallengerLon      float64 `json:challenger_lon`
-	ChallengerLat      float64 `json:challenger_lat`
-	ChallengerLocation string  `json:challenger_location`
-	Challenger         string  `json:challenger`
+	Type               string      `json:type`
+	Time               uint32      `json:time`
+	Secret             string      `json:secret`
+	Path               *[]PathType `json:path`
+	OnionKeyHash       string      `json:onion_key_hash`
+	Height             int         `json:height`
+	Hash               string      `json:hash`
+	Fee                int         `json:fee`
+	ChallengerOwner    string      `json:challenger_owner`
+	ChallengerLon      float64     `json:challenger_lon`
+	ChallengerLat      float64     `json:challenger_lat`
+	ChallengerLocation string      `json:challenger_location`
+	Challenger         string      `json:challenger`
 }
 
-type Path struct {
-	Witnesses          []WitnessType `json:witnesses`
-	Receipt            ReceiptType   `json:receipt`
-	Geocode            GeocodeType   `json:geocode`
-	ChallengeeOwner    string        `json:challengee_owner`
-	ChallengeeLon      float64       `json:challengee_lon`
-	ChallengeeLat      float64       `json:challengee_lat`
-	ChallengeeLocation string        `json:challengee_location`
-	Challengee         string        `json:challengee`
+type PathType struct {
+	Witnesses          *[]WitnessType `json:witnesses`
+	Receipt            *ReceiptType   `json:receipt`
+	Geocode            *GeocodeType   `json:geocode`
+	ChallengeeOwner    string         `json:challengee_owner`
+	ChallengeeLon      float64        `json:challengee_lon`
+	ChallengeeLat      float64        `json:challengee_lat`
+	ChallengeeLocation string         `json:challengee_location`
+	Challengee         string         `json:challengee`
 }
 
 type WitnessType struct {
-	Timestamp  int64  `json:timestamp`
+	Timestamp  uint64 `json:timestamp`
 	Signal     int    `json:signal`
 	PacketHash string `json:packet_hash`
 	Owner      string `json:owner`
@@ -68,6 +68,13 @@ type GeocodeType struct {
 	State        string `json:long_state`
 	Country      string `json:long_country`
 	City         string `json:long_city`
+}
+
+type ChallengeResults struct {
+	Timestamp uint64
+	Address   string
+	Signal    int
+	Location  string
 }
 
 const API_URL = "https://api.helium.io/v1/hotspots/%s/challenges"
@@ -119,12 +126,98 @@ func getChallenges(address string, count int) []Challenges {
 			challenges[totalChallenges] = chals[i]
 			totalChallenges += 1
 			if totalChallenges%100 == 0 {
-				log.Info("Loaded %d challenges", totalChallenges)
+				log.Infof("Loaded %d challenges", totalChallenges)
 			}
 		}
 	}
 
+	log.Debugf("found %d challenges for %s", len(challenges), address)
 	return challenges
+}
+
+func getTxResults(address string, challenges []Challenges) ([]ChallengeResults, error) {
+	results := []ChallengeResults{}
+	for _, entry := range challenges {
+		if entry.Type != "poc_receipts_v1" {
+			log.Warnf("unexpected entry type: %s", entry.Type)
+			continue
+		}
+
+		for _, path := range *entry.Path {
+			if path.Challengee != address {
+				// challengee's send the PoC
+				continue
+			}
+			for _, witness := range *path.Witnesses {
+				results = append(results, ChallengeResults{
+					Address:   witness.Gateway,
+					Timestamp: witness.Timestamp,
+					Signal:    witness.Signal,
+					Location:  witness.Location,
+				})
+			}
+		}
+	}
+	log.Debugf("found %d Tx results for %s", len(results), address)
+	return results, nil
+}
+
+func getRxResults(address string, challenges []Challenges) ([]ChallengeResults, error) {
+	results := []ChallengeResults{}
+	for _, entry := range challenges {
+		if entry.Type != "poc_receipts_v1" {
+			log.Warnf("unexpected entry type: %s", entry.Type)
+			continue
+		}
+
+		for _, path := range *entry.Path {
+			if path.Challengee == address {
+				// challengee's receive the PoC
+				continue
+			}
+			for _, witness := range *path.Witnesses {
+				results = append(results, ChallengeResults{
+					Address:   witness.Gateway,
+					Timestamp: witness.Timestamp,
+					Signal:    witness.Signal,
+					Location:  witness.Location,
+				})
+			}
+		}
+	}
+	log.Debugf("found %d Rx results for %s", len(results), address)
+	return results, nil
+}
+
+// returns a unique list of addresses seen in the challenge results
+func getAddresses(results []ChallengeResults) ([]string, error) {
+	addrs := map[string]int{}
+	for _, result := range results {
+		_, ok := addrs[result.Address]
+		if !ok {
+			addrs[result.Address] = 1
+		} else {
+			addrs[result.Address] += 1
+		}
+	}
+	ret := []string{}
+	for k, _ := range addrs {
+		ret = append(ret, k)
+	}
+	return ret, nil
+}
+
+// returns lists of timestamps and signal values
+func getSignalsTimeSeries(address string, results []ChallengeResults) ([]float64, []float64) {
+	tss := []float64{}
+	signals := []float64{}
+	for _, result := range results {
+		if result.Address == address {
+			tss = append(tss, float64(result.Timestamp))
+			signals = append(signals, float64(result.Signal))
+		}
+	}
+	return tss, signals
 }
 
 // generates a ton of output

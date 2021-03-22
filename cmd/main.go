@@ -50,4 +50,15 @@ func main() {
 
 	c := getChallenges(address, challenges)
 	writeChallenges(c, "challenges.json")
+	results, err := getRxResults(address, c)
+	if err != nil {
+		log.WithError(err).Fatalf("Unable to get results")
+	}
+	generateGraph(address, RX, results, "rx.png")
+
+	results, err = getTxResults(address, c)
+	if err != nil {
+		log.WithError(err).Fatalf("Unable to get results")
+	}
+	generateGraph(address, TX, results, "tx.png")
 }
