@@ -15,9 +15,10 @@ var Buildinfos = "unknown"
 var Tag = "NO-TAG"
 var CommitID = "unknown"
 
+const CHALLENGES_CACHE_FILE = "challenges.json"
+
 func main() {
-	var debug bool
-	var version bool
+	var debug, version, hotspots bool
 	var address string
 	var challenges int
 
@@ -25,6 +26,7 @@ func main() {
 	flag.BoolVar(&version, "version", false, "Print version and exit")
 	flag.StringVar(&address, "address", "", "Hotspot address to report (required)")
 	flag.IntVar(&challenges, "challenges", 500, "Number of challenges to proecess")
+	flag.BoolVar(&hotspots, "hotspots", false, "Download a current list of hotspots and exit")
 
 	flag.Parse()
 
@@ -44,21 +46,32 @@ func main() {
 		os.Exit(0)
 	}
 
+	if hotspots {
+		err := loadHotspots(HOTSPOT_CACHE_FILE)
+		if err != nil {
+			log.WithError(err).Fatalf("Unable to load hotspots")
+		}
+		os.Exit(0)
+	}
+
 	if address == "" {
 		log.Fatalf("Please specify --address")
 	}
 
+	getHotspots()
 	c := getChallenges(address, challenges)
-	writeChallenges(c, "challenges.json")
+	writeChallenges(c, CHALLENGES_CACHE_FILE)
 	results, err := getRxResults(address, c)
 	if err != nil {
 		log.WithError(err).Fatalf("Unable to get results")
 	}
-	generateGraph(address, RX, results, "rx.png")
+	fname := fmt.Sprintf("%s-rx.png", address)
+	generateGraph(address, RX, results, fname)
 
 	results, err = getTxResults(address, c)
 	if err != nil {
 		log.WithError(err).Fatalf("Unable to get results")
 	}
-	generateGraph(address, TX, results, "tx.png")
+	fname = fmt.Sprintf("%s-tx.png", address)
+	generateGraph(address, TX, results, fname)
 }

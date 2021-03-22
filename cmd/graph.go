@@ -33,8 +33,16 @@ func generateGraph(address string, direction RXTX, results []ChallengeResults, f
 		}
 
 		x, y := getSignalsTimeSeries(addr, results)
+		h, err := getHotspot(addr)
+		name := addr
+		if err != nil {
+			log.WithError(err).Warnf("Unable to get Hotspot info")
+		} else {
+			name = h.Name
+		}
+
 		series = append(series, chart.ContinuousSeries{
-			Name:    fmt.Sprintf("%s %s", addr, label),
+			Name:    fmt.Sprintf("%s %s", name, label),
 			XValues: x,
 			YValues: y,
 		})
