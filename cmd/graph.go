@@ -41,7 +41,7 @@ func generateGraph(address string, direction RXTX, results []ChallengeResults, f
 			name = h.Name
 		}
 
-		series = append(series, chart.ContinuousSeries{
+		series = append(series, chart.TimeSeries{
 			Name:    fmt.Sprintf("%s %s", name, label),
 			XValues: x,
 			YValues: y,
@@ -55,6 +55,8 @@ func generateGraph(address string, direction RXTX, results []ChallengeResults, f
 				Left: 260,
 			},
 		},
+		Height: 1536,
+		Width:  2048,
 		Series: series,
 	}
 
@@ -67,4 +69,5 @@ func generateGraph(address string, direction RXTX, results []ChallengeResults, f
 	}
 	defer f.Close()
 	graph.Render(chart.PNG, f)
+	log.Infof("Created %s", filename)
 }
