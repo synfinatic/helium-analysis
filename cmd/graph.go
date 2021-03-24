@@ -116,14 +116,61 @@ func generatePeerGraph(address, witness string, results []WitnessResult) error {
 		}
 	}
 
-	dataPoints := len(tx_x) + len(rx_x)
-	if dataPoints < 2 {
+	series := []chart.Series{}
+	dataPoints := 0
+	if len(tx_x) > 1 {
+		txSeries := chart.TimeSeries{
+			Name:    "TX Signal",
+			XValues: tx_x,
+			YValues: tx_vals,
+		}
+		txSmaSeries := &chart.SMASeries{
+			Name:        "TX Average",
+			InnerSeries: txSeries,
+		}
+		/*
+			chart.TimeSeries{
+				Name:    "TX Valid",
+				YAxis:   chart.YAxisSecondary,
+				XValues: tx_x,
+				YValues: tx_valid_vals,
+			},
+		*/
+		series = append(series, txSeries, txSmaSeries)
+		dataPoints += len(tx_x)
+	}
+
+	if len(rx_x) > 1 {
+		rxSeries := chart.TimeSeries{
+			Name:    "RX Signal",
+			XValues: rx_x,
+			YValues: rx_vals,
+		}
+
+		rxSmaSeries := &chart.SMASeries{
+			Name:        "RX Average",
+			InnerSeries: rxSeries,
+		}
+		/*
+			chart.TimeSeries{
+				Name:    "RX Valid",
+				YAxis:   chart.YAxisSecondary,
+				XValues: rx_x,
+				YValues: rx_valid_vals,
+			},
+		*/
+		series = append(series, rxSeries, rxSmaSeries)
+		dataPoints += len(rx_x)
+	}
+
+	if len(series) == 0 {
 		// no data
 		log.Debugf("Skipping: %s", filename)
 		return nil
 	}
 
 	graph := chart.Chart{
+		Title: fmt.Sprintf("%s <=> %s", a, b),
 		Background: chart.Style{
 			Padding: chart.Box{
 				Top:  20,
@@ -132,30 +179,7 @@ func generatePeerGraph(address, witness string, results []WitnessResult) error {
 		},
 		Height: HEIGHT,
 		Width:  WIDTH,
-		Series: []chart.Series{
-			chart.TimeSeries{
-				Name:    "TX Signal",
-				XValues: tx_x,
-				YValues: tx_vals,
-			},
-			chart.TimeSeries{
-				Name:    "RX Signal",
-				XValues: rx_x,
-				YValues: rx_vals,
-			},
-			/*
-				chart.TimeSeries{
-					Name:    "RX Valid",
-					XValues: rx_x,
-					YValues: rx_valid_vals,
-				},
-				chart.TimeSeries{
-					Name:    "TX Valid",
-					XValues: tx_x,
-					YValues: tx_valid_vals,
-				},
-			*/
-		},
+		Series: series,
 	}
 
 	graph.Elements = []chart.Renderable{
