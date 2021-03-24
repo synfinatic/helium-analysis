@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"time"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/go-resty/resty/v2"
@@ -101,6 +102,9 @@ func getChallengeResponse(client *resty.Client, address string, cursor string) (
 	if err != nil {
 		return []Challenges{}, "", err
 	}
+	if resp.IsError() {
+		return []Challenges{}, "", fmt.Errorf("Error %d: %s", resp.StatusCode(), resp.String())
+	}
 	result := (resp.Result().(*ChallengeResponse))
 
 	return result.Data, result.Cursor, nil
@@ -117,8 +121,12 @@ func getChallenges(address string, count int) []Challenges {
 		chals, c, err := getChallengeResponse(client, address, cursor)
 		if err != nil {
 			log.WithError(err).Fatalf("Unable to load challenges")
-		} else if len(chals) == 0 {
-			log.Fatalf("0 challenges fetched.  Invalid address? (%s)", address)
+		} else if totalChallenges == 0 && len(chals) == 0 && c == "" {
+			// sometimes we get 0 results, but a cursor for "more"
+			log.Fatalf("0 challenges fetched for %s.  Invalid address?", address)
+		} else if len(chals) == 0 && c == "" {
+			log.Warnf("Only able to retrieve %d challenges", totalChallenges)
+			return challenges
 		}
 
 		log.Debugf("Retrieved %d challenges", len(chals))
@@ -211,12 +219,14 @@ func getAddresses(results []ChallengeResults) ([]string, error) {
 }
 
 // returns lists of timestamps and signal values
-func getSignalsTimeSeries(address string, results []ChallengeResults) ([]float64, []float64) {
-	tss := []float64{}
+func getSignalsTimeSeries(address string, results []ChallengeResults) ([]time.Time, []float64) {
+	// tss := []float64{}
+	tss := []time.Time{}
 	signals := []float64{}
 	for _, result := range results {
 		if result.Address == address {
-			tss = append(tss, float64(result.Timestamp))
+			// tss = append(tss, float64(result.Timestamp))
+			tss = append(tss, time.Unix(int64(result.Timestamp/1000000000), 0))
 			signals = append(signals, float64(result.Signal))
 		}
 	}

@@ -46,13 +46,16 @@ type StatusType struct {
 }
 
 const (
-	HOTSPOT_URL        = "https://api.helium.io/v1/hotspots/%s"
-	HOTSPOTS_URL       = "https://api.helium.io/v1/hotspots"
-	HOTSPOT_CACHE_FILE = "hotspots.json"
+	HOTSPOT_CACHE_TIMEOUT = 86400 // one day
+	HOTSPOT_URL           = "https://api.helium.io/v1/hotspots/%s"
+	HOTSPOTS_URL          = "https://api.helium.io/v1/hotspots"
+	HOTSPOT_CACHE_FILE    = "hotspots.json"
 )
 
 var HOTSPOT_CACHE map[string]Hotspot = map[string]Hotspot{}
 
+// Looks up a hotspot by address in the cache.  If not,
+// it queries the API
 func getHotspot(address string) (Hotspot, error) {
 	v, ok := HOTSPOT_CACHE[address]
 	if ok {
@@ -77,59 +80,46 @@ func getHotspot(address string) (Hotspot, error) {
 	return result.Data, nil
 }
 
-func getHotspots() {
-	file, err := ioutil.ReadFile(HOTSPOT_CACHE_FILE)
-	if err == nil {
-		cache := HotspotCache{}
-		err = json.Unmarshal(file, &cache)
-		if err == nil {
-			for _, v := range cache.Hotspots {
-				HOTSPOT_CACHE[v.Address] = v
-			}
-			log.Debugf("Loaded hotspot cache")
-			return
-		}
-	}
-
-	log.Fatalf("Unable to load hotspot cache")
-}
-
-// Returns a list of Challenges and the cursor location or an error
-func getHotspotResponse(client *resty.Client, cursor string) ([]Hotspot, string, error) {
-	var resp *resty.Response
-	var err error
-
-	if cursor == "" {
-		resp, err = client.R().
-			SetHeader("Accept", "application/json").
-			SetResult(&HotspotsResponse{}).
-			Get(HOTSPOTS_URL)
-	} else {
-		resp, err = client.R().
-			SetHeader("Accept", "application/json").
-			SetResult(&HotspotsResponse{}).
-			SetQueryParams(map[string]string{
-				"cursor": cursor,
-			}).
-			Get(HOTSPOTS_URL)
-	}
+func getHotspotName(address string) (string, error) {
+	h, err := getHotspot(address)
 	if err != nil {
-		return []Hotspot{}, "", err
+		return "", err
 	}
-	result := (resp.Result().(*HotspotsResponse))
-
-	return result.Data, result.Cursor, nil
+	return h.Name, nil
 }
 
-// Fails to return on error
+// Loads our hotspots from the cachefile
 func loadHotspots(filename string) error {
+	file, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return err
+	}
+	cache := HotspotCache{}
+	err = json.Unmarshal(file, &cache)
+	if err != nil {
+		return err
+	}
+
+	if cache.Time+HOTSPOT_CACHE_TIMEOUT < time.Now().Unix() {
+		log.Warnf("Hotspot cache is old.  You may want to refresh via --hotspots")
+	}
+
+	for _, v := range cache.Hotspots {
+		HOTSPOT_CACHE[v.Address] = v
+	}
+	log.Debugf("Loaded hotspot cache")
+	return nil
+
+}
+
+// Download hotspot data from helium.api servers and saves to filename
+func downloadHotspots(filename string) error {
 	hotspots := []Hotspot{}
 	cursor := "" // keep track
 	client := resty.New()
 	first_time := true
 	last_size := 0
 
-	log.Debugf("wel well well")
 	for first_time || cursor != "" {
 		hs, c, err := getHotspotResponse(client, cursor)
 		if err != nil {
@@ -158,4 +148,34 @@ func loadHotspots(filename string) error {
 		return err
 	}
 	return ioutil.WriteFile(filename, jdata, 0644)
+}
+
+// Does the actual work of downloading Hotspot data
+func getHotspotResponse(client *resty.Client, cursor string) ([]Hotspot, string, error) {
+	var resp *resty.Response
+	var err error
+
+	if cursor == "" {
+		resp, err = client.R().
+			SetHeader("Accept", "application/json").
+			SetResult(&HotspotsResponse{}).
+			Get(HOTSPOTS_URL)
+	} else {
+		resp, err = client.R().
+			SetHeader("Accept", "application/json").
+			SetResult(&HotspotsResponse{}).
+			SetQueryParams(map[string]string{
+				"cursor": cursor,
+			}).
+			Get(HOTSPOTS_URL)
+	}
+	if err != nil {
+		return []Hotspot{}, "", err
+	}
+	if resp.IsError() {
+		return []Hotspot{}, "", fmt.Errorf("Error %d: %s", resp.StatusCode(), resp.String())
+	}
+	result := (resp.Result().(*HotspotsResponse))
+
+	return result.Data, result.Cursor, nil
 }

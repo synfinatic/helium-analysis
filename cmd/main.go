@@ -41,13 +41,13 @@ func main() {
 	}
 
 	if version == true {
-		fmt.Printf("Helium Analysis Version %s -- Copyright 2021 Aaron Turner\n", Version)
+		fmt.Printf("Helium Analysis v%s -- Copyright 2021 Aaron Turner\n", Version)
 		fmt.Printf("%s (%s) built at %s\n", CommitID, Tag, Buildinfos)
 		os.Exit(0)
 	}
 
 	if hotspots {
-		err := loadHotspots(HOTSPOT_CACHE_FILE)
+		err := downloadHotspots(HOTSPOT_CACHE_FILE)
 		if err != nil {
 			log.WithError(err).Fatalf("Unable to load hotspots")
 		}
@@ -58,20 +58,32 @@ func main() {
 		log.Fatalf("Please specify --address")
 	}
 
-	getHotspots()
+	err := loadHotspots(HOTSPOT_CACHE_FILE)
+	if err != nil {
+		log.WithError(err).Fatalf("Unable to load hotspots")
+	}
+
 	c := getChallenges(address, challenges)
 	writeChallenges(c, CHALLENGES_CACHE_FILE)
+
+	// RX Results
+	name, err := getHotspotName(address)
+	if err != nil {
+		log.WithError(err).Fatalf("Unable to get hotspot name")
+	}
+
 	results, err := getRxResults(address, c)
 	if err != nil {
 		log.WithError(err).Fatalf("Unable to get results")
 	}
-	fname := fmt.Sprintf("%s-rx.png", address)
+	fname := fmt.Sprintf("%s-rx.png", name)
 	generateGraph(address, RX, results, fname)
 
+	// TX Results
 	results, err = getTxResults(address, c)
 	if err != nil {
 		log.WithError(err).Fatalf("Unable to get results")
 	}
-	fname = fmt.Sprintf("%s-tx.png", address)
+	fname = fmt.Sprintf("%s-tx.png", name)
 	generateGraph(address, TX, results, fname)
 }
