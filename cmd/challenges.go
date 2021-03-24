@@ -44,7 +44,7 @@ type PathType struct {
 }
 
 type WitnessType struct {
-	Timestamp  uint64 `json:"timestamp"`
+	Timestamp  int64  `json:"timestamp"`
 	Signal     int    `json:"signal"`
 	PacketHash string `json:"packet_hash"`
 	Owner      string `json:"owner"`
@@ -71,10 +71,20 @@ type GeocodeType struct {
 	City         string `json:"long_city"`
 }
 
-type ChallengeResults struct {
-	Timestamp uint64
+type ChallengeResult struct {
+	Timestamp int64
 	Address   string
 	Signal    int
+	Location  string
+}
+
+type WitnessResult struct {
+	Timestamp int64
+	Address   string
+	Witness   string
+	Type      RXTX
+	Signal    int
+	Valid     bool
 	Location  string
 }
 
@@ -146,8 +156,8 @@ func getChallenges(address string, count int) []Challenges {
 	return challenges
 }
 
-func getTxResults(address string, challenges []Challenges) ([]ChallengeResults, error) {
-	results := []ChallengeResults{}
+func getTxResults(address string, challenges []Challenges) ([]ChallengeResult, error) {
+	results := []ChallengeResult{}
 	for _, entry := range challenges {
 		if entry.Type != "poc_receipts_v1" {
 			log.Warnf("unexpected entry type: %s", entry.Type)
@@ -160,7 +170,7 @@ func getTxResults(address string, challenges []Challenges) ([]ChallengeResults, 
 				continue
 			}
 			for _, witness := range *path.Witnesses {
-				results = append(results, ChallengeResults{
+				results = append(results, ChallengeResult{
 					Address:   witness.Gateway,
 					Timestamp: witness.Timestamp,
 					Signal:    witness.Signal,
@@ -173,8 +183,8 @@ func getTxResults(address string, challenges []Challenges) ([]ChallengeResults, 
 	return results, nil
 }
 
-func getRxResults(address string, challenges []Challenges) ([]ChallengeResults, error) {
-	results := []ChallengeResults{}
+func getRxResults(address string, challenges []Challenges) ([]ChallengeResult, error) {
+	results := []ChallengeResult{}
 	for _, entry := range challenges {
 		if entry.Type != "poc_receipts_v1" {
 			log.Warnf("unexpected entry type: %s", entry.Type)
@@ -187,7 +197,7 @@ func getRxResults(address string, challenges []Challenges) ([]ChallengeResults, 
 				continue
 			}
 			for _, witness := range *path.Witnesses {
-				results = append(results, ChallengeResults{
+				results = append(results, ChallengeResult{
 					Address:   witness.Gateway,
 					Timestamp: witness.Timestamp,
 					Signal:    witness.Signal,
@@ -200,8 +210,42 @@ func getRxResults(address string, challenges []Challenges) ([]ChallengeResults, 
 	return results, nil
 }
 
+func getWitnessResults(address, witness string, challenges []Challenges) ([]WitnessResult, error) {
+	results := []WitnessResult{}
+	for _, entry := range challenges {
+		if entry.Type != "poc_receipts_v1" {
+			log.Warnf("unexpected entry type: %s", entry.Type)
+			continue
+		}
+
+		for _, path := range *entry.Path {
+			var rxtx RXTX = RX
+			if path.Challengee != address {
+				rxtx = TX
+			}
+
+			for _, wit := range *path.Witnesses {
+				if wit.Gateway != witness {
+					continue
+				}
+				results = append(results, WitnessResult{
+					Timestamp: int64(wit.Timestamp),
+					Address:   address,
+					Witness:   wit.Gateway,
+					Signal:    wit.Signal,
+					Type:      rxtx,
+					Valid:     true, // FIXME
+					Location:  wit.Location,
+				})
+			}
+		}
+	}
+	log.Debugf("found %d witness results for %s<->%s", len(results), address, witness)
+	return results, nil
+}
+
 // returns a unique list of addresses seen in the challenge results
-func getAddresses(results []ChallengeResults) ([]string, error) {
+func getAddresses(results []ChallengeResult) ([]string, error) {
 	addrs := map[string]int{}
 	for _, result := range results {
 		_, ok := addrs[result.Address]
@@ -219,7 +263,7 @@ func getAddresses(results []ChallengeResults) ([]string, error) {
 }
 
 // returns lists of timestamps and signal values
-func getSignalsTimeSeries(address string, results []ChallengeResults) ([]time.Time, []float64) {
+func getSignalsTimeSeriesChallenge(address string, results []ChallengeResult) ([]time.Time, []float64) {
 	// tss := []float64{}
 	tss := []time.Time{}
 	signals := []float64{}

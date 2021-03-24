@@ -65,25 +65,5 @@ func main() {
 
 	c := getChallenges(address, challenges)
 	writeChallenges(c, CHALLENGES_CACHE_FILE)
-
-	// RX Results
-	name, err := getHotspotName(address)
-	if err != nil {
-		log.WithError(err).Fatalf("Unable to get hotspot name")
-	}
-
-	results, err := getRxResults(address, c)
-	if err != nil {
-		log.WithError(err).Fatalf("Unable to get results")
-	}
-	fname := fmt.Sprintf("%s-rx.png", name)
-	generateGraph(address, RX, results, fname)
-
-	// TX Results
-	results, err = getTxResults(address, c)
-	if err != nil {
-		log.WithError(err).Fatalf("Unable to get results")
-	}
-	fname = fmt.Sprintf("%s-tx.png", name)
-	generateGraph(address, TX, results, fname)
+	generatePeerGraphs(address, c)
 }
