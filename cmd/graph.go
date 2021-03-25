@@ -96,23 +96,24 @@ func generatePeerGraph(address, witness string, results []WitnessResult) error {
 
 	tx_vals := []float64{}
 	rx_vals := []float64{}
-	tx_valid_vals := []float64{}
-	rx_valid_vals := []float64{}
+	tx_valid_vals := []chart.Value2{}
+	rx_valid_vals := []chart.Value2{}
 
 	for _, ret := range results {
-		var valid float64 = 1.0
-		if !ret.Valid {
-			valid = 0.0
-		}
-
+		x := time.Unix(ret.Timestamp/1000000000, 0)
+		y := float64(ret.Signal)
 		if ret.Type == RX {
-			rx_x = append(rx_x, time.Unix(ret.Timestamp/1000000000, 0))
-			rx_vals = append(rx_vals, float64(ret.Signal))
-			rx_valid_vals = append(rx_valid_vals, valid)
+			rx_x = append(rx_x, x)
+			rx_vals = append(rx_vals, y)
+			if !ret.Valid {
+				rx_valid_vals = append(rx_valid_vals, chart.Value2{XValue: x, YValue: y, Label: "Invalid"})
+			}
 		} else {
-			tx_x = append(tx_x, time.Unix(ret.Timestamp/1000000000, 0))
-			tx_vals = append(tx_vals, float64(ret.Signal))
-			tx_valid_vals = append(tx_valid_vals, valid)
+			tx_x = append(tx_x, x)
+			tx_vals = append(tx_vals, y)
+			if !ret.Valid {
+				tx_valid_vals = append(tx_valid_vals, chart.Value2{XValue: x, YValue: y, Label: "Invalid"})
+			}
 		}
 	}
 
@@ -124,19 +125,16 @@ func generatePeerGraph(address, witness string, results []WitnessResult) error {
 			XValues: tx_x,
 			YValues: tx_vals,
 		}
+
 		txSmaSeries := &chart.SMASeries{
 			Name:        "TX Average",
 			InnerSeries: txSeries,
 		}
-		/*
-			chart.TimeSeries{
-				Name:    "TX Valid",
-				YAxis:   chart.YAxisSecondary,
-				XValues: tx_x,
-				YValues: tx_valid_vals,
-			},
-		*/
-		series = append(series, txSeries, txSmaSeries)
+
+		txValidSeries := chart.AnnotationSeries{
+			Annotations: tx_valid_vals,
+		}
+		series = append(series, txSeries, txSmaSeries, txValidSeries)
 		dataPoints += len(tx_x)
 	}
 
@@ -151,15 +149,11 @@ func generatePeerGraph(address, witness string, results []WitnessResult) error {
 			Name:        "RX Average",
 			InnerSeries: rxSeries,
 		}
-		/*
-			chart.TimeSeries{
-				Name:    "RX Valid",
-				YAxis:   chart.YAxisSecondary,
-				XValues: rx_x,
-				YValues: rx_valid_vals,
-			},
-		*/
-		series = append(series, rxSeries, rxSmaSeries)
+
+		rxValidSeries := chart.AnnotationSeries{
+			Annotations: rx_valid_vals,
+		}
+		series = append(series, rxSeries, rxSmaSeries, rxValidSeries)
 		dataPoints += len(rx_x)
 	}
 
@@ -169,8 +163,9 @@ func generatePeerGraph(address, witness string, results []WitnessResult) error {
 		return nil
 	}
 
+	title := fmt.Sprintf("%s <=> %s (%.02fkm/%.02fmi)", a, b, results[0].Km, results[0].Mi)
 	graph := chart.Chart{
-		Title: fmt.Sprintf("%s <=> %s", a, b),
+		Title: title,
 		Background: chart.Style{
 			Padding: chart.Box{
 				Top:  20,
