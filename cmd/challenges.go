@@ -4,11 +4,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"math"
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/go-resty/resty/v2"
 	log "github.com/sirupsen/logrus"
+	"github.com/umahmood/haversine"
 )
 
 type ChallengeResponse struct {
@@ -85,6 +87,8 @@ type WitnessResult struct {
 	Type      RXTX
 	Signal    int
 	Valid     bool
+	Km        float64
+	Mi        float64
 	Location  string
 }
 
@@ -217,6 +221,10 @@ func getWitnessResults(address, witness string, challenges []Challenges) ([]Witn
 			log.Warnf("unexpected entry type: %s", entry.Type)
 			continue
 		}
+		aHost, err := getHotspot(address)
+		if err != nil {
+			return []WitnessResult{}, err
+		}
 
 		for _, path := range *entry.Path {
 			var rxtx RXTX = RX
@@ -228,13 +236,33 @@ func getWitnessResults(address, witness string, challenges []Challenges) ([]Witn
 				if wit.Gateway != witness {
 					continue
 				}
+
+				wHost, err := getHotspot(witness)
+				if err != nil {
+					log.WithError(err).Errorf("Unable to lookup: %s", witness)
+					continue
+				}
+
+				km, mi, err := getDistance(aHost, wHost)
+				if err != nil {
+					km = 0.0
+					mi = 0.0
+				}
+
+				valid := true
+				if float64(wit.Signal) > maxRssi(km) {
+					valid = false
+				}
+
 				results = append(results, WitnessResult{
 					Timestamp: int64(wit.Timestamp),
 					Address:   address,
 					Witness:   wit.Gateway,
 					Signal:    wit.Signal,
 					Type:      rxtx,
-					Valid:     true, // FIXME
+					Valid:     valid,
+					Km:        km,
+					Mi:        mi,
 					Location:  wit.Location,
 				})
 			}
@@ -264,13 +292,24 @@ func getAddresses(results []ChallengeResult) ([]string, error) {
 
 // returns lists of timestamps and signal values
 func getSignalsTimeSeriesChallenge(address string, results []ChallengeResult) ([]time.Time, []float64) {
-	// tss := []float64{}
 	tss := []time.Time{}
 	signals := []float64{}
 	for _, result := range results {
 		if result.Address == address {
 			// tss = append(tss, float64(result.Timestamp))
 			tss = append(tss, time.Unix(int64(result.Timestamp/1000000000), 0))
+			signals = append(signals, float64(result.Signal))
+		}
+	}
+	return tss, signals
+}
+
+func getSignalsSeriesChallenge(address string, results []ChallengeResult) ([]float64, []float64) {
+	tss := []float64{}
+	signals := []float64{}
+	for _, result := range results {
+		if result.Address == address {
+			tss = append(tss, float64(result.Timestamp))
 			signals = append(signals, float64(result.Signal))
 		}
 	}
@@ -289,4 +328,81 @@ func writeChallenges(challenges []Challenges, filename string) error {
 		return err
 	}
 	return ioutil.WriteFile(filename, b, 0644)
+}
+
+// returns the max RSSI based on distance
+// Stolen from: https://github.com/Carniverous19/helium_analysis_tools.git
+func maxRssi(km float64) float64 {
+	if km < 0.001 {
+		return -1000.0
+	}
+	return 28.0 + 1.8*2 - (20.0*math.Log10(km) + 20.0*math.Log10(915.0) + 32.44)
+}
+
+// Not sure why it is a list of values at the end???
+// Stolen from: https://github.com/Carniverous19/helium_analysis_tools.git
+var SnrTable = map[int][]int{
+	16:  {-90, -35},
+	14:  {-90, -35},
+	13:  {-90, -35},
+	15:  {-90, -35},
+	12:  {-90, -35},
+	11:  {-90, -35},
+	10:  {-90, -40},
+	9:   {-95, -45},
+	8:   {-105, -45},
+	7:   {-108, -45},
+	6:   {-113, -100},
+	5:   {-115, -100},
+	4:   {-115, -112},
+	3:   {-115, -112},
+	1:   {-120, -117},
+	2:   {-117, -112},
+	0:   {-125, -125},
+	-1:  {-125, -125},
+	-2:  {-125, -125},
+	-3:  {-125, -125},
+	-4:  {-125, -125},
+	-5:  {-125, -125},
+	-6:  {-124, -124},
+	-7:  {-123, -123},
+	-8:  {-125, -125},
+	-9:  {-125, -125},
+	-10: {-125, -125},
+	-11: {-125, -125},
+	-12: {-125, -125},
+	-13: {-125, -125},
+	-14: {-125, -125},
+	-15: {-124, -124},
+	-16: {-123, -123},
+	-17: {-123, -123},
+	-18: {-123, -123},
+	-19: {-123, -123},
+	-20: {-123, -123},
+}
+
+// returns the minimum valid RSSI at a given SNR
+func minRssiPerSnr(snr float64) int {
+	snri := int(math.Ceil(snr))
+	v, ok := SnrTable[snri]
+	if !ok {
+		return 1000
+	}
+	return v[0]
+}
+
+// Get the haversine distance between two node addresses
+func getDistance(aHost, bHost Hotspot) (float64, float64, error) {
+
+	mi, km := haversine.Distance(
+		haversine.Coord{
+			Lat: aHost.Lat,
+			Lon: aHost.Lng,
+		},
+		haversine.Coord{
+			Lat: bHost.Lat,
+			Lon: bHost.Lng,
+		},
+	)
+	return km, mi, nil
 }

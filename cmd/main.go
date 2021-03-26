@@ -20,13 +20,14 @@ const CHALLENGES_CACHE_FILE = "challenges.json"
 func main() {
 	var debug, version, hotspots bool
 	var address string
-	var challenges int
+	var min, challenges int
 
 	flag.BoolVar(&debug, "debug", false, "Enable debugging")
 	flag.BoolVar(&version, "version", false, "Print version and exit")
 	flag.StringVar(&address, "address", "", "Hotspot address to report (required)")
 	flag.IntVar(&challenges, "challenges", 500, "Number of challenges to proecess")
 	flag.BoolVar(&hotspots, "hotspots", false, "Download a current list of hotspots and exit")
+	flag.IntVar(&min, "min", 5, "Minimum challenges required to graph")
 
 	flag.Parse()
 
@@ -65,5 +66,5 @@ func main() {
 
 	c := getChallenges(address, challenges)
 	writeChallenges(c, CHALLENGES_CACHE_FILE)
-	generatePeerGraphs(address, c)
+	generatePeerGraphs(address, c, min)
 }
