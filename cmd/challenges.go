@@ -292,13 +292,24 @@ func getAddresses(results []ChallengeResult) ([]string, error) {
 
 // returns lists of timestamps and signal values
 func getSignalsTimeSeriesChallenge(address string, results []ChallengeResult) ([]time.Time, []float64) {
-	// tss := []float64{}
 	tss := []time.Time{}
 	signals := []float64{}
 	for _, result := range results {
 		if result.Address == address {
 			// tss = append(tss, float64(result.Timestamp))
 			tss = append(tss, time.Unix(int64(result.Timestamp/1000000000), 0))
+			signals = append(signals, float64(result.Signal))
+		}
+	}
+	return tss, signals
+}
+
+func getSignalsSeriesChallenge(address string, results []ChallengeResult) ([]float64, []float64) {
+	tss := []float64{}
+	signals := []float64{}
+	for _, result := range results {
+		if result.Address == address {
+			tss = append(tss, float64(result.Timestamp))
 			signals = append(signals, float64(result.Signal))
 		}
 	}
