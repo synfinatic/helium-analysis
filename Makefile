@@ -27,7 +27,7 @@ DESCRIPTION               := Helium Analysis: Tools for hotspot placement optimi
 BUILDINFOS                := $(shell date +%FT%T%z)$(BUILDINFOSDET)
 HOSTNAME                  := $(shell hostname)
 LDFLAGS                   := -X "main.Version=$(PROJECT_VERSION)" -X "main.Buildinfos=$(BUILDINFOS)" -X "main.Tag=$(PROJECT_TAG)" -X "main.CommitID=$(PROJECT_COMMIT)"
-OUTPUT_NAME               := $(DIST_DIR)$(PROJECT_NAME)-$(PROJECT_VERSION)-$(GOOS)-$(GOARCH)  # default for current platform
+OUTPUT_NAME               := $(DIST_DIR)$(PROJECT_NAME)  # default for current platform
 # supported platforms for `make release`
 WINDOWS_BIN               := $(DIST_DIR)$(PROJECT_NAME)-$(PROJECT_VERSION)-windows-amd64.exe
 WINDOWS32_BIN             := $(DIST_DIR)$(PROJECT_NAME)-$(PROJECT_VERSION)-windows-386.exe
@@ -146,3 +146,7 @@ darwin: $(DARWIN_BIN)  ## Build MacOS/x86_64 binary
 $(DARWIN_BIN): $(wildcard */*.go) .prepare
 	GOARCH=amd64 GOOS=darwin go build -ldflags='$(LDFLAGS)' -o $(DARWIN_BIN) cmd/*.go
 	@echo "Created: $(DARWIN_BIN)"
+
+$(OUTPUT_NAME): $(wildcard */*.go) .prepare
+	go build -ldflags='$(LDFLAGS)' -o $(OUTPUT_NAME) cmd/*.go
+	@echo "Created: $(OUTPUT_NAME)"
