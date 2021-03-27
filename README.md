@@ -47,7 +47,7 @@ Yes, if your signal strength is in the red, then it is considered invalid:
  * `--challenges X` - Set the number of challenges to process (default 500)
  * `--hotspots` - Refresh hotspots cache 
  * `--no-cache` - Disable caching of challenges
- * `--expires 1` - Refresh challenges if more than X hours old
+ * `--expires X` - Refresh challenges if more than X hours old
 
 ## Donate
 
