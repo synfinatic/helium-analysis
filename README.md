@@ -36,7 +36,6 @@ Yes, if your signal strength is in the red, then it is considered invalid:
 
 ## Running
 
- 1. First pull down a list of all hotspots and their metadata: `./dist/helium-analysis --hotspots`
  2. Generate the graphs: `./dist/helium-analysis --address XXXXXX` where XXXXXX
     is the hotspot address (not name!) you wish to analyze.
 
