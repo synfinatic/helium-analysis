@@ -19,8 +19,8 @@ where appropriate) while the lines show the trailing average.
 Here is a graph showing more data points, including some invalid PoC witnesses.
 ![](https://user-images.githubusercontent.com/1075352/112706128-6ad03780-8e5f-11eb-943a-33b8ed942ecb.png)
 
-Looks like clever-oily-nightingale is no longer able to witnesses fantastic-fieery-scallop.
-![](https://user-images.githubusercontent.com/1075352/112706121-673cb080-8e5f-11eb-9ff0-2d46e0ce26c3.png)
+Something clearly changed and better signal strength!
+![](https://user-images.githubusercontent.com/1075352/112737511-4edc9c80-8f18-11eb-9327-96f420610b27.png)
 
 ## Invalid?
 

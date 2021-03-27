@@ -122,6 +122,10 @@ func generatePeerGraph(address, witness string, results []WitnessResult, min int
 	for _, ret := range results {
 		x := float64(ret.Timestamp)
 		y := float64(ret.Signal)
+		if y < Y_MIN || y > Y_MAX {
+			log.Warnf("Threw out invalid value outside of range %.02f to %.02f: %.02f", Y_MIN, Y_MAX, y)
+			continue
+		}
 		if ret.Type == RX {
 			rx_x = append(rx_x, x)
 			rx_vals = append(rx_vals, y)
