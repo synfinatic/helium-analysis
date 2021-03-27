@@ -66,7 +66,15 @@ func main() {
 
 	err := loadHotspots(HOTSPOT_CACHE_FILE)
 	if err != nil {
-		log.WithError(err).Fatalf("Unable to load hotspots")
+		log.WithError(err).Warn("Unable to load hotspot cache.  Refreshing...")
+		err = downloadHotspots(HOTSPOT_CACHE_FILE)
+		if err != nil {
+			log.WithError(err).Fatalf("Unable to load hotspots.")
+		}
+		err = loadHotspots(HOTSPOT_CACHE_FILE)
+		if err != nil {
+			log.WithError(err).Fatalf("Unable to load new hotspot cache")
+		}
 	}
 
 	c := []Challenges{}
@@ -78,7 +86,7 @@ func main() {
 	} else {
 		c, err = readChallenges(CHALLENGES_CACHE_FILE, address, challengesExpires*3600, challengesCnt)
 		if err != nil {
-			log.WithError(err).Warnf("Unable to load challenges file. Falling back to download.")
+			log.WithError(err).Warnf("Unable to load challenges file. Refreshing...")
 			c, err = fetchChallenges(address, challengesCnt)
 			if err != nil {
 				log.Fatalf("%s", err)
