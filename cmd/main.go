@@ -1,7 +1,6 @@
 package main
 
 import (
-	//	"github.com/wcharczuk/go-chart/v2" // exposes chart
 	"fmt"
 	"os"
 
@@ -18,16 +17,18 @@ var CommitID = "unknown"
 const CHALLENGES_CACHE_FILE = "challenges.json"
 
 func main() {
-	var debug, version, hotspots bool
+	var debug, version, hotspots, challengeCache, zoom bool
 	var address string
-	var min, challenges int
+	var min, challengesCnt int
 
 	flag.BoolVar(&debug, "debug", false, "Enable debugging")
 	flag.BoolVar(&version, "version", false, "Print version and exit")
 	flag.StringVar(&address, "address", "", "Hotspot address to report (required)")
-	flag.IntVar(&challenges, "challenges", 500, "Number of challenges to proecess")
+	flag.IntVar(&challengesCnt, "challenges", 500, "Number of challenges to process")
 	flag.BoolVar(&hotspots, "hotspots", false, "Download a current list of hotspots and exit")
 	flag.IntVar(&min, "min", 5, "Minimum challenges required to graph")
+	flag.BoolVar(&challengeCache, "use-cache", false, fmt.Sprintf("Use %s cache file", CHALLENGES_CACHE_FILE))
+	flag.BoolVar(&zoom, "zoom", false, "Unfix X/Y axis to zoom in")
 
 	flag.Parse()
 
@@ -64,7 +65,16 @@ func main() {
 		log.WithError(err).Fatalf("Unable to load hotspots")
 	}
 
-	c := getChallenges(address, challenges)
-	writeChallenges(c, CHALLENGES_CACHE_FILE)
-	generatePeerGraphs(address, c, min)
+	c := []Challenges{}
+	if challengeCache {
+		c, err = readChallenges(CHALLENGES_CACHE_FILE)
+		if err != nil {
+			log.WithError(err).Fatalf("Unable to load challenges file")
+		}
+	} else {
+		c = getChallenges(address, challengesCnt)
+		writeChallenges(c, CHALLENGES_CACHE_FILE)
+	}
+
+	generatePeerGraphs(address, c, min, zoom)
 }
