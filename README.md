@@ -29,6 +29,10 @@ Yes, if your signal strength is in the red, then it is considered invalid:
 
 ## Building
 
+You can [grab a precompiled binary](
+https://github.com/synfinatic/helium-analysis/releases) or build it yourself.
+
+
  1. Make sure you have [Golang](https://www.golang.org) installed.
  1. Clone the repo
  1. Run: `make` using GNU Make (not BSD make).  Your binary will be placed in
@@ -36,7 +40,7 @@ Yes, if your signal strength is in the red, then it is considered invalid:
 
 ## Running
 
- 2. Generate the graphs: `./dist/helium-analysis --address XXXXXX` where XXXXXX
+ 1. Generate the graphs: `./dist/helium-analysis --address XXXXXX` where XXXXXX
     is the hotspot address (not name!) you wish to analyze.
 
 ## Flags
