@@ -100,8 +100,10 @@ func loadHotspots(filename string) error {
 		return err
 	}
 
-	if cache.Time+HOTSPOT_CACHE_TIMEOUT < time.Now().Unix() {
-		log.Warnf("Hotspot cache is old.  You may want to refresh via --hotspots")
+	age := time.Now().Unix() - cache.Time
+	if age > HOTSPOT_CACHE_TIMEOUT {
+		log.Warnf("Hotspot cache is %dhrs old.  You may want to refresh via --hotspots",
+			age/60/60)
 	}
 
 	for _, v := range cache.Hotspots {
