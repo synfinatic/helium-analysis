@@ -321,13 +321,24 @@ func printChallenges(challenges []Challenges) {
 	fmt.Printf(spew.Sdump(challenges))
 }
 
-// use this as a cache for later?
+// write the cache file
 func writeChallenges(challenges []Challenges, filename string) error {
 	b, err := json.MarshalIndent(challenges, "", "  ")
 	if err != nil {
 		return err
 	}
 	return ioutil.WriteFile(filename, b, 0644)
+}
+
+// read the cache file
+func readChallenges(filename string) ([]Challenges, error) {
+	ret := []Challenges{}
+	bytes, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return ret, err
+	}
+	err = json.Unmarshal(bytes, &ret)
+	return ret, err
 }
 
 // returns the max RSSI based on distance
@@ -340,6 +351,7 @@ func maxRssi(km float64) float64 {
 }
 
 // Not sure why it is a list of values at the end???
+// Table is map[SNR][0] = minimum valid RSSI
 // Stolen from: https://github.com/Carniverous19/helium_analysis_tools.git
 var SnrTable = map[int][]int{
 	16:  {-90, -35},
@@ -356,8 +368,8 @@ var SnrTable = map[int][]int{
 	5:   {-115, -100},
 	4:   {-115, -112},
 	3:   {-115, -112},
-	1:   {-120, -117},
 	2:   {-117, -112},
+	1:   {-120, -117},
 	0:   {-125, -125},
 	-1:  {-125, -125},
 	-2:  {-125, -125},

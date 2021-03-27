@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/wcharczuk/go-chart/v2"
@@ -18,8 +19,11 @@ const (
 )
 
 const (
-	HEIGHT = 512
-	WIDTH  = 1024
+	HEIGHT   = 512
+	WIDTH    = 1024
+	Y_MIN    = -130.0
+	Y_MAX    = -70.0
+	DOT_SIZE = 5
 )
 
 // Creates the PNG for the given args
@@ -78,14 +82,14 @@ func generateGraph(address string, direction RXTX, results []ChallengeResult, fi
 	log.Infof("Created %s", filename)
 }
 
-func generatePeerGraph(address, witness string, results []WitnessResult, min int) error {
+func generatePeerGraph(address, witness string, results []WitnessResult, min int, x_min, x_max float64) (error, bool) {
 	a, err := getHotspotName(address)
 	if err != nil {
-		return err
+		return err, false
 	}
 	b, err := getHotspotName(witness)
 	if err != nil {
-		return err
+		return err, false
 	}
 	filename := fmt.Sprintf("%s:%s.png", a, b)
 
@@ -118,7 +122,7 @@ func generatePeerGraph(address, witness string, results []WitnessResult, min int
 	series := []chart.Series{}
 	style := chart.Style{
 		StrokeWidth: chart.Disabled,
-		DotWidth:    5,
+		DotWidth:    DOT_SIZE,
 	}
 	dataPoints := 0
 	if len(tx_x) >= min {
@@ -153,7 +157,6 @@ func generatePeerGraph(address, witness string, results []WitnessResult, min int
 			Name:        "RX Average",
 			InnerSeries: rxSeries,
 		}
-
 		rxValidSeries := chart.AnnotationSeries{
 			Annotations: rx_valid_vals,
 		}
@@ -164,7 +167,17 @@ func generatePeerGraph(address, witness string, results []WitnessResult, min int
 	if len(series) == 0 {
 		// no data
 		log.Debugf("Skipping: %s", filename)
-		return nil
+		return nil, false
+	}
+
+	// Zoom in?
+	x_range := chart.ContinuousRange{}
+	y_range := chart.ContinuousRange{}
+	if x_min > 0.0 && x_max > 0.0 {
+		x_range.Min = x_min
+		x_range.Max = x_max
+		y_range.Min = Y_MIN
+		y_range.Max = Y_MAX
 	}
 
 	title := fmt.Sprintf("%s <=> %s (%.02fkm/%.02fmi)", a, b, results[0].Km, results[0].Mi)
@@ -172,18 +185,18 @@ func generatePeerGraph(address, witness string, results []WitnessResult, min int
 		Title: title,
 		Background: chart.Style{
 			Padding: chart.Box{
-				Top:  70,
-				Left: 20,
+				Top:    110,
+				Left:   20,
+				Right:  20,
+				Bottom: 10,
 			},
 		},
 		XAxis: chart.XAxis{
-			ValueFormatter: func(v interface{}) string {
-				if fv, isFloat := v.(float64); isFloat {
-					t := time.Unix(int64(fv/1000000000), 0)
-					return t.Format("2006-01-02 15:04")
-				}
-				return ""
-			},
+			ValueFormatter: XValueFormatter,
+			Range:          &x_range,
+		},
+		YAxis: chart.YAxis{
+			Range: &y_range,
 		},
 		Height: HEIGHT,
 		Width:  WIDTH,
@@ -191,16 +204,16 @@ func generatePeerGraph(address, witness string, results []WitnessResult, min int
 	}
 
 	graph.Elements = []chart.Renderable{
-		chart.Legend(&graph),
+		chart.LegendThin(&graph),
 	}
 	f, err := os.Create(filename)
 	if err != nil {
-		return fmt.Errorf("Unable to crate %s: %s", filename, err)
+		return fmt.Errorf("Unable to crate %s: %s", filename, err), false
 	}
 	defer f.Close()
 	graph.Render(chart.PNG, f)
 	log.Infof("Created %s with %d data points", filename, dataPoints)
-	return nil
+	return nil, true
 }
 
 func getListOfAddresses(challenges []Challenges) ([]string, error) {
@@ -224,11 +237,25 @@ func getListOfAddresses(challenges []Challenges) ([]string, error) {
 	return ret, nil
 }
 
-func generatePeerGraphs(address string, challenges []Challenges, min int) {
+func generatePeerGraphs(address string, challenges []Challenges, min int, zoom bool) {
 	addresses, err := getListOfAddresses(challenges)
 	if err != nil {
 		log.WithError(err).Fatalf("Unable to get addresses")
 	}
+
+	x_min := 0.0
+	x_max := 0.0
+	if !zoom {
+		c := *challenges[0].Path
+		p := *c[0].Witnesses
+		x_max = float64(p[0].Timestamp)
+		last := len(challenges) - 1
+		c = *challenges[last].Path
+		p = *c[0].Witnesses
+		x_min = float64(p[0].Timestamp)
+	}
+
+	cnt := 0
 	for _, peer := range addresses {
 		wr, err := getWitnessResults(address, peer, challenges)
 		if err != nil {
@@ -236,9 +263,28 @@ func generatePeerGraphs(address string, challenges []Challenges, min int) {
 			continue
 		}
 
-		err = generatePeerGraph(address, peer, wr, min)
+		err, generated := generatePeerGraph(address, peer, wr, min, x_min, x_max)
 		if err != nil {
 			log.WithError(err).Errorf("Unable to generate graph")
 		}
+		if generated {
+			cnt += 1
+		}
 	}
+}
+
+func XValueFormatter(v interface{}) string {
+	if fv, isFloat := v.(float64); isFloat {
+		t := time.Unix(int64(fv/1000000000), 0)
+		hr, _ := strconv.Atoi(t.Format("15"))
+		htime := "am"
+		if hr > 11 {
+			htime = "pm"
+			if hr > 12 {
+				hr -= 12
+			}
+		}
+		return fmt.Sprintf("%s %d%s", t.Format("2006-01-02"), hr, htime)
+	}
+	return ""
 }
