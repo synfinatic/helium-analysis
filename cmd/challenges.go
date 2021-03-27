@@ -18,6 +18,13 @@ type ChallengeResponse struct {
 	Cursor string       `json:"cursor"`
 }
 
+type ChallengeCache struct {
+	Time       int64        `json:"time"`
+	Address    string       `json:"address"`
+	Count      int          `json:"count"`
+	Challenges []Challenges `json:"challenges"`
+}
+
 type Challenges struct {
 	Type               string      `json:"type"`
 	Time               uint32      `json:"time"`
@@ -124,8 +131,8 @@ func getChallengeResponse(client *resty.Client, address string, cursor string) (
 	return result.Data, result.Cursor, nil
 }
 
-// Fails to return on error
-func getChallenges(address string, count int) []Challenges {
+// Download all the challenges from the API
+func fetchChallenges(address string, count int) ([]Challenges, error) {
 	challenges := make([]Challenges, count)
 	totalChallenges := 0
 	cursor := "" // keep track
@@ -134,13 +141,13 @@ func getChallenges(address string, count int) []Challenges {
 	for chalCount := 0; chalCount < count; {
 		chals, c, err := getChallengeResponse(client, address, cursor)
 		if err != nil {
-			log.WithError(err).Fatalf("Unable to load challenges")
+			return []Challenges{}, fmt.Errorf("Unable to load challenges: %s", err)
 		} else if totalChallenges == 0 && len(chals) == 0 && c == "" {
 			// sometimes we get 0 results, but a cursor for "more"
-			log.Fatalf("0 challenges fetched for %s.  Invalid address?", address)
+			return []Challenges{}, fmt.Errorf("0 challenges fetched for %s.  Invalid address?", address)
 		} else if len(chals) == 0 && c == "" {
 			log.Warnf("Only able to retrieve %d challenges", totalChallenges)
-			return challenges
+			return challenges, nil
 		}
 
 		log.Debugf("Retrieved %d challenges", len(chals))
@@ -157,7 +164,7 @@ func getChallenges(address string, count int) []Challenges {
 	}
 
 	log.Debugf("found %d challenges for %s", len(challenges), address)
-	return challenges
+	return challenges, nil
 }
 
 func getTxResults(address string, challenges []Challenges) ([]ChallengeResult, error) {
@@ -322,8 +329,14 @@ func printChallenges(challenges []Challenges) {
 }
 
 // write the cache file
-func writeChallenges(challenges []Challenges, filename string) error {
-	b, err := json.MarshalIndent(challenges, "", "  ")
+func writeChallenges(challenges []Challenges, filename, address string, cnt int) error {
+	cache := ChallengeCache{
+		Time:       time.Now().Unix(),
+		Address:    address,
+		Count:      cnt,
+		Challenges: challenges,
+	}
+	b, err := json.MarshalIndent(cache, "", "  ")
 	if err != nil {
 		return err
 	}
@@ -331,14 +344,25 @@ func writeChallenges(challenges []Challenges, filename string) error {
 }
 
 // read the cache file
-func readChallenges(filename string) ([]Challenges, error) {
-	ret := []Challenges{}
+func readChallenges(filename, address string, expires int64, cnt int) ([]Challenges, error) {
+	cache := ChallengeCache{}
 	bytes, err := ioutil.ReadFile(filename)
 	if err != nil {
-		return ret, err
+		return []Challenges{}, err
 	}
-	err = json.Unmarshal(bytes, &ret)
-	return ret, err
+	err = json.Unmarshal(bytes, &cache)
+	if err != nil {
+		return []Challenges{}, err
+	}
+	if cache.Time+expires < time.Now().Unix() {
+		return []Challenges{}, fmt.Errorf("Challenge cache is old. Auto-refreshing...")
+	}
+	if cache.Count != cnt {
+		return []Challenges{}, fmt.Errorf("Challenge cache stored %d instead of %d records.  Auto-refreshing...",
+			cache.Count, cnt)
+	}
+
+	return cache.Challenges, nil
 }
 
 // returns the max RSSI based on distance

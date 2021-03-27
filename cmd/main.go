@@ -15,11 +15,13 @@ var Tag = "NO-TAG"
 var CommitID = "unknown"
 
 const CHALLENGES_CACHE_FILE = "challenges.json"
+const CHALLENGES_CACHE_EXPIRES = 1 // 1 hr
 
 func main() {
-	var debug, version, hotspots, challengeCache, zoom bool
-	var address string
+	var debug, version, hotspots, zoom, noCache bool
+	var address, challengeCache string
 	var min, challengesCnt int
+	var challengesExpires int64
 
 	flag.BoolVar(&debug, "debug", false, "Enable debugging")
 	flag.BoolVar(&version, "version", false, "Print version and exit")
@@ -27,8 +29,10 @@ func main() {
 	flag.IntVar(&challengesCnt, "challenges", 500, "Number of challenges to process")
 	flag.BoolVar(&hotspots, "hotspots", false, "Download a current list of hotspots and exit")
 	flag.IntVar(&min, "min", 5, "Minimum challenges required to graph")
-	flag.BoolVar(&challengeCache, "use-cache", false, fmt.Sprintf("Use %s cache file", CHALLENGES_CACHE_FILE))
 	flag.BoolVar(&zoom, "zoom", false, "Unfix X/Y axis to zoom in")
+	flag.StringVar(&challengeCache, "cache", CHALLENGES_CACHE_FILE, "Challenges cache file")
+	flag.Int64Var(&challengesExpires, "expires", CHALLENGES_CACHE_EXPIRES, "Challenge cache timeout (hrs)")
+	flag.BoolVar(&noCache, "no-cache", false, "Disable loading/reading challenges cache")
 
 	flag.Parse()
 
@@ -66,14 +70,24 @@ func main() {
 	}
 
 	c := []Challenges{}
-	if challengeCache {
-		c, err = readChallenges(CHALLENGES_CACHE_FILE)
+	if noCache {
+		c, err = fetchChallenges(address, challengesCnt)
 		if err != nil {
-			log.WithError(err).Fatalf("Unable to load challenges file")
+			log.Fatalf("%s", err)
 		}
 	} else {
-		c = getChallenges(address, challengesCnt)
-		writeChallenges(c, CHALLENGES_CACHE_FILE)
+		c, err = readChallenges(CHALLENGES_CACHE_FILE, address, challengesExpires*3600, challengesCnt)
+		if err != nil {
+			log.WithError(err).Warnf("Unable to load challenges file. Falling back to download.")
+			c, err = fetchChallenges(address, challengesCnt)
+			if err != nil {
+				log.Fatalf("%s", err)
+			}
+		}
+		if !noCache {
+			writeChallenges(c, CHALLENGES_CACHE_FILE, address, challengesCnt)
+		}
+
 	}
 
 	generatePeerGraphs(address, c, min, zoom)
