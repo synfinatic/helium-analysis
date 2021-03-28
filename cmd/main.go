@@ -37,13 +37,15 @@ const CHALLENGES_CACHE_EXPIRES = 1 // 1 hr
 
 func main() {
 	var debug, version, hotspots, zoom, noCache bool
-	var address, challengeCache string
+	var address, challengeCache, name string
 	var min, challengesCnt int
 	var challengesExpires int64
+	var err error
 
 	flag.BoolVar(&debug, "debug", false, "Enable debugging")
 	flag.BoolVar(&version, "version", false, "Print version and exit")
-	flag.StringVar(&address, "address", "", "Hotspot address to report (required)")
+	flag.StringVar(&address, "address", "", "Hotspot address to report on")
+	flag.StringVar(&name, "name", "", "Hotspot name to report on")
 	flag.IntVar(&challengesCnt, "challenges", 500, "Number of challenges to process")
 	flag.BoolVar(&hotspots, "hotspots", false, "Download a current list of hotspots and exit")
 	flag.IntVar(&min, "min", 5, "Minimum challenges required to graph")
@@ -77,18 +79,14 @@ func main() {
 	}
 
 	if hotspots {
-		err := downloadHotspots(HOTSPOT_CACHE_FILE)
+		err = downloadHotspots(HOTSPOT_CACHE_FILE)
 		if err != nil {
 			log.WithError(err).Fatalf("Unable to load hotspots")
 		}
 		os.Exit(0)
 	}
 
-	if address == "" {
-		log.Fatalf("Please specify --address")
-	}
-
-	err := loadHotspots(HOTSPOT_CACHE_FILE)
+	err = loadHotspots(HOTSPOT_CACHE_FILE)
 	if err != nil {
 		log.WithError(err).Warn("Unable to load hotspot cache.  Refreshing...")
 		err = downloadHotspots(HOTSPOT_CACHE_FILE)
@@ -99,6 +97,16 @@ func main() {
 		if err != nil {
 			log.WithError(err).Fatalf("Unable to load new hotspot cache")
 		}
+	}
+
+	if name != "" {
+		address, err = getHotspotAddress(name)
+		if err != nil {
+			log.Fatalf("%s", err)
+		}
+	}
+	if address == "" {
+		log.Fatalf("Please specify --address or --name")
 	}
 
 	c := []Challenges{}

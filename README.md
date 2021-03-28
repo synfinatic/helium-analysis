@@ -41,16 +41,20 @@ https://github.com/synfinatic/helium-analysis/releases) or build it yourself.
 ## Running
 
  1. Generate the graphs: `./dist/helium-analysis --address XXXXXX` where XXXXXX
-    is the hotspot address (not name!) you wish to analyze.
+    is the hotspot address you wish to analyze.  Optionally, you can use 
+    `--name` to specify the hotspot name to analyze.
 
 ## Flags
 
+ * `--address X` - Specify the hotspot address to analyze
+ * `--name X` - Specify the hotspot name to analyze
  * `--zoom` - Unfix the X & Y axis and zoom in on each individual graph 
  * `--min X` - Set the minimum of data points required to generate a graph  (deafult 5)
  * `--challenges X` - Set the number of challenges to process (default 500)
  * `--hotspots` - Refresh hotspots cache 
  * `--no-cache` - Disable caching of challenges
  * `--expires X` - Refresh challenges if more than X hours old
+ * `--version` - Print out the version information
 
 ## Donate
 
