@@ -44,8 +44,8 @@ type HotspotCache struct {
 
 type Hotspot struct {
 	Address           string       `json:"address"`
-	Block             uint64       `json:"block"`
-	BlockAdded        uint64       `json:"block_added"`
+	Block             int64        `json:"block"`
+	BlockAdded        int64        `json:"block_added"`
 	Geocode           *GeocodeType `json:"geocode"`
 	Lat               float64      `json:"lat"`
 	Lng               float64      `json:"lng"`
@@ -54,12 +54,12 @@ type Hotspot struct {
 	Nonce             int64        `json:"nonce"`
 	Owner             string       `json:"owner"`
 	Score             float64      `json:"score"`
-	ScoreUpdateHeight uint64       `json:"score_update_height"`
+	ScoreUpdateHeight int64        `json:"score_update_height"`
 	Status            *StatusType  `json:"status"`
 }
 
 type StatusType struct {
-	Height uint64 `json:"height"`
+	Height int64  `json:"height"`
 	Online string `json:"online"`
 }
 

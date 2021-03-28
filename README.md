@@ -22,6 +22,9 @@ Here is a graph showing more data points, including some invalid PoC witnesses.
 Something clearly changed and better signal strength!
 ![](https://user-images.githubusercontent.com/1075352/112737511-4edc9c80-8f18-11eb-9327-96f420610b27.png)
 
+Joined marker indicates when atomic-blood-woodpecker was added to the blockchain.
+![](https://user-images.githubusercontent.com/1075352/112768602-9d01a680-8fd1-11eb-95f4-69e1481c4a70.png)
+
 ## Invalid?
 
 Yes, if your signal strength is in the red, then it is considered invalid:

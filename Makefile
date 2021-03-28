@@ -9,7 +9,7 @@ endif
 BUILDINFOSDET ?=
 PROGRAM_ARGS ?=
 
-PROJECT_VERSION           := 0.5.2
+PROJECT_VERSION           := 0.5.3
 DOCKER_REPO               := synfinatic
 PROJECT_NAME              := helium-analysis
 PROJECT_TAG               := $(shell git describe --tags 2>/dev/null $(git rev-list --tags --max-count=1))
@@ -42,7 +42,7 @@ ALL: $(OUTPUT_NAME) ## Build binary.  Needs to be a supported plaform as defined
 
 include help.mk  # place after ALL target and before all other targets
 
-release: windows windows32 linux linux-arm32 linux-arm64 darwin ## Build all our release binaries
+release: clean windows windows32 linux linux-arm32 linux-arm64 darwin ## Build all our release binaries
 
 .PHONY: run
 run: cmd/*.go  ## build and run cria using $PROGRAM_ARGS

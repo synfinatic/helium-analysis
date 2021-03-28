@@ -100,7 +100,7 @@ func generateGraph(address string, direction RXTX, results []ChallengeResult, fi
 	log.Infof("Created %s", filename)
 }
 
-func generatePeerGraph(address, witness string, results []WitnessResult, min int, x_min, x_max float64) (error, bool) {
+func generatePeerGraph(address, witness string, results []WitnessResult, min int, x_min, x_max float64, join_time int64) (error, bool) {
 	a, err := getHotspotName(address)
 	if err != nil {
 		return err, false
@@ -215,6 +215,18 @@ func generatePeerGraph(address, witness string, results []WitnessResult, min int
 		}
 	}
 
+	// marker for when hotspot joined
+	join_vals := []chart.Value2{}
+	if join_time > 0 && float64(join_time) > x_min {
+		join_vals = append(join_vals, chart.Value2{
+			XValue: float64(join_time), YValue: -100.0, Label: "Joined"})
+	}
+	series = append(series,
+		chart.AnnotationSeries{
+			Annotations: join_vals,
+		},
+	)
+
 	title := fmt.Sprintf("%s <=> %s (%.02fkm/%.02fmi)", a, b, results[0].Km, results[0].Mi)
 	graph := chart.Chart{
 		Title: title,
@@ -298,7 +310,13 @@ func generatePeerGraphs(address string, challenges []Challenges, min int, zoom b
 			continue
 		}
 
-		err, generated := generatePeerGraph(address, peer, wr, min, x_min, x_max)
+		var join_time int64 = 0
+		host, err := getHotspot(peer)
+		if err == nil {
+			join_time, err = getTimeForHeight(host.BlockAdded, challenges)
+		}
+
+		err, generated := generatePeerGraph(address, peer, wr, min, x_min, x_max, join_time)
 		if err != nil {
 			log.WithError(err).Errorf("Unable to generate graph")
 		}
