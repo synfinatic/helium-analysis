@@ -105,6 +105,15 @@ func getHotspotName(address string) (string, error) {
 	return h.Name, nil
 }
 
+func getHotspotAddress(name string) (string, error) {
+	for address, hotspot := range HOTSPOT_CACHE {
+		if hotspot.Name == name {
+			return address, nil
+		}
+	}
+	return "", fmt.Errorf("Unable to find %s in hotspot cache", name)
+}
+
 // Loads our hotspots from the cachefile
 func loadHotspots(filename string) error {
 	file, err := ioutil.ReadFile(filename)
