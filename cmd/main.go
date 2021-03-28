@@ -72,6 +72,10 @@ func main() {
 		os.Exit(0)
 	}
 
+	if min < 2 {
+		log.Fatalf("Please specify a --min value >= 2")
+	}
+
 	if hotspots {
 		err := downloadHotspots(HOTSPOT_CACHE_FILE)
 		if err != nil {

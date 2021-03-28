@@ -77,7 +77,6 @@ var HOTSPOT_CACHE map[string]Hotspot = map[string]Hotspot{}
 func getHotspot(address string) (Hotspot, error) {
 	v, ok := HOTSPOT_CACHE[address]
 	if ok {
-		log.Debugf("cache hit:  %s => %s", address, v.Name)
 		return v, nil
 	} else {
 		log.Debugf("cache miss: %s", address)
