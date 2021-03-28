@@ -45,11 +45,11 @@ type ChallengeCache struct {
 
 type Challenges struct {
 	Type               string      `json:"type"`
-	Time               uint32      `json:"time"`
+	Time               int64       `json:"time"`
 	Secret             string      `json:"secret"`
 	Path               *[]PathType `json:"path"`
 	OnionKeyHash       string      `json:"onion_key_hash"`
-	Height             int         `json:"height"`
+	Height             int64       `json:"height"`
 	Hash               string      `json:"hash"`
 	Fee                int         `json:"fee"`
 	ChallengerOwner    string      `json:"challenger_owner"`
@@ -447,7 +447,6 @@ func minRssiPerSnr(snr float64) int {
 
 // Get the haversine distance between two node addresses
 func getDistance(aHost, bHost Hotspot) (float64, float64, error) {
-
 	mi, km := haversine.Distance(
 		haversine.Coord{
 			Lat: aHost.Lat,
@@ -459,4 +458,25 @@ func getDistance(aHost, bHost Hotspot) (float64, float64, error) {
 		},
 	)
 	return km, mi, nil
+}
+
+// returns the highest nanosec block time less than or equal to the given height
+func getTimeForHeight(height int64, challenges []Challenges) (int64, error) {
+	var t_height int64 = math.MaxInt64
+	var t int64 = 0
+	for _, c := range challenges {
+		if c.Height <= t_height && c.Height > height {
+			p := *c.Path
+			if p[0].Receipt == nil {
+				continue
+			}
+			r := *p[0].Receipt
+			t = r.Timestamp
+			t_height = c.Height
+		}
+	}
+	if t > 0 {
+		return t, nil
+	}
+	return 0, fmt.Errorf("Unable to find time for height %d", height)
 }
