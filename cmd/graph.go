@@ -119,12 +119,16 @@ func generatePeerGraph(address, witness string, results []WitnessResult, min int
 	tx_valid_vals := []chart.Value2{}
 	rx_valid_vals := []chart.Value2{}
 
+	forceYRange := 1000.0
+	witnessName, err := getHotspotName(witness)
+	if err != nil {
+		witnessName = witness
+	}
 	for _, ret := range results {
 		x := float64(ret.Timestamp)
 		y := float64(ret.Signal)
 		if y < Y_MIN || y > Y_MAX {
-			log.Warnf("Threw out invalid value outside of range %.02f to %.02f: %.02f", Y_MIN, Y_MAX, y)
-			continue
+			forceYRange = y
 		}
 		if ret.Type == RX {
 			rx_x = append(rx_x, x)
@@ -192,14 +196,23 @@ func generatePeerGraph(address, witness string, results []WitnessResult, min int
 		return nil, false
 	}
 
+	lockYRange := true
+	if forceYRange != 1000.0 {
+		log.Warnf("% 2.0fdB is outside of graph defaults.  Unlocking Y axis for %s",
+			forceYRange, witnessName)
+		lockYRange = false
+	}
+
 	// Zoom in?
 	x_range := chart.ContinuousRange{}
 	y_range := chart.ContinuousRange{}
 	if x_min > 0.0 && x_max > 0.0 {
 		x_range.Min = x_min
 		x_range.Max = x_max
-		y_range.Min = Y_MIN
-		y_range.Max = Y_MAX
+		if lockYRange {
+			y_range.Min = Y_MIN
+			y_range.Max = Y_MAX
+		}
 	}
 
 	title := fmt.Sprintf("%s <=> %s (%.02fkm/%.02fmi)", a, b, results[0].Km, results[0].Mi)
