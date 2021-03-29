@@ -116,7 +116,7 @@ func main() {
 			log.Fatalf("%s", err)
 		}
 	} else {
-		c, err = readChallenges(CHALLENGES_CACHE_FILE, address, challengesExpires*3600, challengesCnt)
+		c, err = loadChallenges(CHALLENGES_CACHE_FILE, address, challengesExpires*3600, challengesCnt)
 		if err != nil {
 			log.WithError(err).Warnf("Unable to load challenges file. Refreshing...")
 			c, err = fetchChallenges(address, challengesCnt)
