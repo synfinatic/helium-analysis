@@ -71,12 +71,18 @@ type PathType struct {
 }
 
 type WitnessType struct {
-	Timestamp  int64  `json:"timestamp"`
-	Signal     int    `json:"signal"`
-	PacketHash string `json:"packet_hash"`
-	Owner      string `json:"owner"`
-	Location   string `json:"location"`
-	Gateway    string `json:"gateway"`
+	Timestamp  int64   `json:"timestamp"`
+	Signal     int     `json:"signal"`
+	PacketHash string  `json:"packet_hash"`
+	Owner      string  `json:"owner"`
+	Location   string  `json:"location"`
+	Gateway    string  `json:"gateway"`
+	Snr        float64 `json:"snr"`
+	IsValid    bool    `json:"is_valid"`
+	// Available fields we don't need
+	//	Frequency          float64     `json:"frequency"`
+	//	Datarate           string      `json:"datarate"`
+	//	Channel            int         `json:"channel"`
 }
 
 type ReceiptType struct {
@@ -106,15 +112,17 @@ type ChallengeResult struct {
 }
 
 type WitnessResult struct {
-	Timestamp int64
-	Address   string
-	Witness   string
-	Type      RXTX
-	Signal    int
-	Valid     bool
-	Km        float64
-	Mi        float64
-	Location  string
+	Timestamp      int64
+	Address        string
+	Witness        string
+	Type           RXTX
+	Signal         int
+	Valid          bool
+	Km             float64
+	Mi             float64
+	Location       string
+	Snr            float64
+	ValidThreshold float64
 }
 
 const CHALLENGE_URL = "https://api.helium.io/v1/hotspots/%s/challenges"
@@ -283,21 +291,17 @@ func getWitnessResults(address, witness string, challenges []Challenges) ([]Witn
 					mi = 0.0
 				}
 
-				valid := true
-				if float64(wit.Signal) > maxRssi(km) {
-					valid = false
-				}
-
 				results = append(results, WitnessResult{
-					Timestamp: int64(wit.Timestamp),
-					Address:   address,
-					Witness:   wit.Gateway,
-					Signal:    wit.Signal,
-					Type:      rxtx,
-					Valid:     valid,
-					Km:        km,
-					Mi:        mi,
-					Location:  wit.Location,
+					Timestamp:      int64(wit.Timestamp),
+					Address:        address,
+					Witness:        wit.Gateway,
+					Signal:         wit.Signal,
+					Type:           rxtx,
+					Valid:          wit.IsValid,
+					ValidThreshold: minRssiPerSnr(wit.Snr),
+					Km:             km,
+					Mi:             mi,
+					Location:       wit.Location,
 				})
 			}
 		}
@@ -461,13 +465,13 @@ var SnrTable = map[int][]int{
 }
 
 // returns the minimum valid RSSI at a given SNR
-func minRssiPerSnr(snr float64) int {
+func minRssiPerSnr(snr float64) float64 {
 	snri := int(math.Ceil(snr))
 	v, ok := SnrTable[snri]
 	if !ok {
-		return 1000
+		return 1000.0
 	}
-	return v[0]
+	return float64(v[0])
 }
 
 // Get the haversine distance between two node addresses

@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/wcharczuk/go-chart/v2"
+	"github.com/wcharczuk/go-chart/v2/drawing"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -113,9 +114,11 @@ func generatePeerGraph(address, witness string, results []WitnessResult, min int
 
 	tx_x := []float64{}
 	rx_x := []float64{}
+	thresholds_x := []float64{}
 
 	tx_vals := []float64{}
 	rx_vals := []float64{}
+	thresholds := []float64{}
 	tx_valid_vals := []chart.Value2{}
 	rx_valid_vals := []chart.Value2{}
 
@@ -143,24 +146,57 @@ func generatePeerGraph(address, witness string, results []WitnessResult, min int
 				tx_valid_vals = append(tx_valid_vals, chart.Value2{XValue: x, YValue: y, Label: "Invalid"})
 			}
 		}
+		thresholds = append(thresholds, ret.ValidThreshold)
+		thresholds_x = append(thresholds_x, x)
 	}
 
 	series := []chart.Series{}
-	style := chart.Style{
+	styleRx := chart.Style{
 		StrokeWidth: chart.Disabled,
 		DotWidth:    DOT_SIZE,
+		StrokeColor: drawing.ColorGreen,
+		DotColor:    drawing.ColorGreen,
 	}
+	styleRxAvg := chart.Style{
+		StrokeWidth:     1,
+		DotWidth:        chart.Disabled,
+		StrokeColor:     drawing.ColorGreen,
+		DotColor:        drawing.ColorGreen,
+		StrokeDashArray: []float64{5.0, 5.0},
+	}
+	styleTx := chart.Style{
+		StrokeWidth: chart.Disabled,
+		DotWidth:    DOT_SIZE,
+		StrokeColor: drawing.ColorBlue,
+		DotColor:    drawing.ColorBlue,
+	}
+	styleTxAvg := chart.Style{
+		StrokeWidth:     1,
+		DotWidth:        chart.Disabled,
+		StrokeColor:     drawing.ColorBlue,
+		DotColor:        drawing.ColorBlue,
+		StrokeDashArray: []float64{5.0, 5.0},
+	}
+	/* FIXME: disable for now
+	lineStyle := chart.Style{
+		StrokeWidth: 1,
+		DotWidth:    chart.Disabled,
+		StrokeColor: drawing.ColorRed,
+		//		StrokeDashArray: []float64{5.0, 5.0},
+	}
+	*/
 	dataPoints := 0
 	if len(tx_x) >= min {
 		txSeries := chart.ContinuousSeries{
 			Name:    "TX Signal",
-			Style:   style,
+			Style:   styleTx,
 			XValues: tx_x,
 			YValues: tx_vals,
 		}
 
 		txSmaSeries := &chart.SMASeries{
 			Name:        "TX Average",
+			Style:       styleTxAvg,
 			InnerSeries: txSeries,
 		}
 
@@ -174,13 +210,14 @@ func generatePeerGraph(address, witness string, results []WitnessResult, min int
 	if len(rx_x) >= min {
 		rxSeries := chart.ContinuousSeries{
 			Name:    "RX Signal",
-			Style:   style,
+			Style:   styleRx,
 			XValues: rx_x,
 			YValues: rx_vals,
 		}
 
 		rxSmaSeries := &chart.SMASeries{
 			Name:        "RX Average",
+			Style:       styleRxAvg,
 			InnerSeries: rxSeries,
 		}
 		rxValidSeries := chart.AnnotationSeries{
@@ -195,6 +232,16 @@ func generatePeerGraph(address, witness string, results []WitnessResult, min int
 		log.Debugf("Skipping: %s", filename)
 		return nil, false
 	}
+
+	/* FIXME: disable for now since I don't trust the results
+	thresholdSeries := chart.ContinuousSeries{
+		Name:    "Threshold",
+		Style:   lineStyle,
+		XValues: thresholds_x,
+		YValues: thresholds,
+	}
+	series = append(series, thresholdSeries)
+	*/
 
 	lockYRange := true
 	if forceYRange != 1000.0 {
