@@ -293,13 +293,18 @@ func generatePeerGraphs(address string, challenges []Challenges, min int, zoom b
 	x_min := 0.0
 	x_max := 0.0
 	if !zoom {
-		c := *challenges[0].Path
-		p := *c[0].Witnesses
-		x_max = float64(p[0].Timestamp)
-		last := len(challenges) - 1
-		c = *challenges[last].Path
-		p = *c[0].Witnesses
-		x_min = float64(p[0].Timestamp)
+		for i := 0; x_max == 0; i++ {
+			max, err := challenges[i].GetTimestamp()
+			if err == nil {
+				x_max = float64(max)
+			}
+		}
+		for i := len(challenges) - 1; x_min == 0; i-- {
+			min, err := challenges[i].GetTimestamp()
+			if err == nil {
+				x_min = float64(min)
+			}
+		}
 	}
 
 	cnt := 0

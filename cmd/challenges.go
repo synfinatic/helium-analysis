@@ -362,7 +362,7 @@ func writeChallenges(challenges []Challenges, filename, address string, cnt int)
 }
 
 // read the cache file
-func readChallenges(filename, address string, expires int64, cnt int) ([]Challenges, error) {
+func loadChallenges(filename, address string, expires int64, cnt int) ([]Challenges, error) {
 	cache := ChallengeCache{}
 	bytes, err := ioutil.ReadFile(filename)
 	if err != nil {
@@ -373,11 +373,14 @@ func readChallenges(filename, address string, expires int64, cnt int) ([]Challen
 		return []Challenges{}, err
 	}
 	if cache.Time+expires < time.Now().Unix() {
-		return []Challenges{}, fmt.Errorf("Challenge cache is old. Auto-refreshing...")
+		return []Challenges{}, fmt.Errorf("Challenge cache is old.")
 	}
 	if cache.Count != cnt {
-		return []Challenges{}, fmt.Errorf("Challenge cache stored %d instead of %d records.  Auto-refreshing...",
+		return []Challenges{}, fmt.Errorf("Challenge cache stored %d instead of %d records.",
 			cache.Count, cnt)
+	}
+	if cache.Address != address {
+		return []Challenges{}, fmt.Errorf("Challenge cache is for different hotspot.")
 	}
 
 	return cache.Challenges, nil
@@ -464,14 +467,13 @@ func getDistance(aHost, bHost Hotspot) (float64, float64, error) {
 func getTimeForHeight(height int64, challenges []Challenges) (int64, error) {
 	var t_height int64 = math.MaxInt64
 	var t int64 = 0
+	var err error
 	for _, c := range challenges {
 		if c.Height <= t_height && c.Height > height {
-			p := *c.Path
-			if p[0].Receipt == nil {
+			t, err = c.GetTimestamp()
+			if err != nil {
 				continue
 			}
-			r := *p[0].Receipt
-			t = r.Timestamp
 			t_height = c.Height
 		}
 	}
@@ -479,4 +481,26 @@ func getTimeForHeight(height int64, challenges []Challenges) (int64, error) {
 		return t, nil
 	}
 	return 0, fmt.Errorf("Unable to find time for height %d", height)
+}
+
+// Tries to figure out the Timestamp for the given challenge
+func (c *Challenges) GetTimestamp() (int64, error) {
+	if c.Path == nil {
+		return 0, fmt.Errorf("No paths: unable to determine timestamp for %s@%d",
+			c.Type, c.Time)
+	}
+	p := *c.Path
+
+	if p[0].Receipt != nil {
+		r := p[0].Receipt
+		return r.Timestamp, nil
+	}
+
+	if p[0].Witnesses != nil {
+		w := *p[0].Witnesses
+		return w[0].Timestamp, nil
+	}
+
+	return 0, fmt.Errorf("No data: unable to determine timestamp for %s@%d",
+		c.Type, c.Time)
 }
