@@ -21,6 +21,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/mattn/go-colorable"
 	log "github.com/sirupsen/logrus"
@@ -38,7 +39,7 @@ const CHALLENGES_CACHE_EXPIRES = 1 // 1 hr
 func main() {
 	var debug, version, hotspots, zoom, noCache bool
 	var address, challengeCache, name string
-	var min, challengesCnt int
+	var min, days int
 	var challengesExpires int64
 	var err error
 
@@ -46,7 +47,7 @@ func main() {
 	flag.BoolVar(&version, "version", false, "Print version and exit")
 	flag.StringVar(&address, "address", "", "Hotspot address to report on")
 	flag.StringVar(&name, "name", "", "Hotspot name to report on")
-	flag.IntVar(&challengesCnt, "challenges", 500, "Number of challenges to process")
+	flag.IntVar(&days, "days", 30, "Set starting point in days")
 	flag.BoolVar(&hotspots, "hotspots", false, "Download a current list of hotspots and exit")
 	flag.IntVar(&min, "min", 5, "Minimum challenges required to graph")
 	flag.BoolVar(&zoom, "zoom", false, "Unfix X/Y axis to zoom in")
@@ -109,25 +110,30 @@ func main() {
 		log.Fatalf("Please specify --address or --name")
 	}
 
+	// Calcuate the beginning of the day, X days back
+	hours, _ := time.ParseDuration(fmt.Sprintf("%dh", days*24))
+	startTime := time.Now().Add(-hours)
+	startDate := startTime.Format("2006-01-02")
+	start, _ := time.Parse("2006-01-02", startDate)
+
 	c := []Challenges{}
 	if noCache {
-		c, err = fetchChallenges(address, challengesCnt)
+		c, err = fetchChallenges(address, start)
 		if err != nil {
 			log.Fatalf("%s", err)
 		}
 	} else {
-		c, err = loadChallenges(CHALLENGES_CACHE_FILE, address, challengesExpires*3600, challengesCnt)
+		c, err = loadChallenges(CHALLENGES_CACHE_FILE, address, challengesExpires*3600, start)
 		if err != nil {
 			log.WithError(err).Warnf("Unable to load challenges file. Refreshing...")
-			c, err = fetchChallenges(address, challengesCnt)
+			c, err = fetchChallenges(address, start)
 			if err != nil {
 				log.Fatalf("%s", err)
 			}
 		}
 		if !noCache {
-			writeChallenges(c, CHALLENGES_CACHE_FILE, address, challengesCnt)
+			writeChallenges(c, CHALLENGES_CACHE_FILE, address, start)
 		}
-
 	}
 
 	generatePeerGraphs(address, c, min, zoom)

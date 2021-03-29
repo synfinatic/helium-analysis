@@ -11,7 +11,7 @@ use the default 500 challenges worth of analysis.
 Good example of two nodes talking to each other very consistently:
 ![](https://user-images.githubusercontent.com/1075352/112706374-f72f2a00-8e60-11eb-902e-cda4a2f7a4c5.png)
 
-Notice the empty space on the right hand side indicating they haven't witnessed 
+Notice the empty space on the right hand side indicating they haven't witnessed
 each other for a few days.  Dots show actual PoC messages (both RX and TX
 where appropriate) while the lines show the trailing average.
 ![](https://user-images.githubusercontent.com/1075352/112706137-7a4f8080-8e5f-11eb-9ef2-4dca63fccd6c.png)
@@ -30,11 +30,12 @@ Joined marker indicates when atomic-blood-woodpecker was added to the blockchain
 Yes, if your signal strength is in the red, then it is considered invalid:
 ![](https://user-images.githubusercontent.com/1075352/112706552-2db97480-8e62-11eb-88d9-75b61af09279.png)
 
-## Building
+## Installation
 
 You can [grab a precompiled binary](
 https://github.com/synfinatic/helium-analysis/releases) or build it yourself.
 
+To build the binary:
 
  1. Make sure you have [Golang](https://www.golang.org) installed.
  1. Clone the repo
@@ -43,18 +44,21 @@ https://github.com/synfinatic/helium-analysis/releases) or build it yourself.
 
 ## Running
 
- 1. Generate the graphs: `./dist/helium-analysis --address XXXXXX` where XXXXXX
-    is the hotspot address you wish to analyze.  Optionally, you can use 
-    `--name` to specify the hotspot name to analyze.
+From a terminal, execute: `./helium-analysis --address XXXXXX` where XXXXXX
+is the hotspot address you wish to analyze.  Optionally, you can use
+`--name` to specify the hotspot name to analyze.  This will generate a PNG file
+for each hotspot you witness and/or witnessed you.
+
+Note that there is no GUI/WebUI at this time.
 
 ## Flags
 
  * `--address X` - Specify the hotspot address to analyze
  * `--name X` - Specify the hotspot name to analyze
- * `--zoom` - Unfix the X & Y axis and zoom in on each individual graph 
+ * `--zoom` - Unfix the X & Y axis and zoom in on each individual graph
  * `--min X` - Set the minimum of data points required to generate a graph  (deafult 5)
- * `--challenges X` - Set the number of challenges to process (default 500)
- * `--hotspots` - Refresh hotspots cache 
+ * `--days X` - Set the number of days to process (default 30)
+ * `--hotspots` - Refresh hotspots cache
  * `--no-cache` - Disable caching of challenges
  * `--expires X` - Refresh challenges if more than X hours old
  * `--version` - Print out the version information
@@ -63,6 +67,6 @@ https://github.com/synfinatic/helium-analysis/releases) or build it yourself.
 
 If you find this useful, feel free to throw a few HNT my way: `144xaKFbp4arCNWztcDbB8DgWJFCZxc8AtAKuZHZ6Ejew44wL8z`
 
-## License 
+## License
 
 Helium Analysis is Licensed under the [GPLv3](https://www.gnu.org/licenses/gpl-3.0.en.html).
