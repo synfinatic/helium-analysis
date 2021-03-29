@@ -37,9 +37,9 @@ type ChallengeResponse struct {
 }
 
 type ChallengeCache struct {
-	Time       int64        `json:"time"`
+	CacheTime  int64        `json:"cache_time"`
 	Address    string       `json:"address"`
-	Count      int          `json:"count"`
+	StartDate  int64        `json:"start_date"`
 	Challenges []Challenges `json:"challenges"`
 }
 
@@ -150,13 +150,14 @@ func getChallengeResponse(client *resty.Client, address string, cursor string) (
 }
 
 // Download all the challenges from the API
-func fetchChallenges(address string, count int) ([]Challenges, error) {
-	challenges := make([]Challenges, count)
+func fetchChallenges(address string, start time.Time) ([]Challenges, error) {
+	challenges := []Challenges{}
 	totalChallenges := 0
 	cursor := "" // keep track
 	client := resty.New()
+	loadMoreRecords := true
 
-	for chalCount := 0; chalCount < count; {
+	for loadMoreRecords {
 		chals, c, err := getChallengeResponse(client, address, cursor)
 		if err != nil {
 			return []Challenges{}, fmt.Errorf("Unable to load challenges: %s", err)
@@ -169,11 +170,19 @@ func fetchChallenges(address string, count int) ([]Challenges, error) {
 		}
 
 		log.Debugf("Retrieved %d challenges", len(chals))
-		chalCount += len(chals)
 		cursor = c // keep track of the cursor for next time
 
-		for i := 0; i < len(chals) && totalChallenges < count; i++ {
-			challenges[totalChallenges] = chals[i]
+		for i := 0; i < len(chals); i++ {
+			challengeTime, err := chals[i].GetTime()
+			if err != nil {
+				return []Challenges{}, err
+			}
+			if challengeTime.Before(start) {
+				loadMoreRecords = false
+				break
+			}
+
+			challenges = append(challenges, chals[i])
 			totalChallenges += 1
 			if totalChallenges%100 == 0 {
 				log.Infof("Loaded %d challenges", totalChallenges)
@@ -347,11 +356,11 @@ func printChallenges(challenges []Challenges) {
 }
 
 // write the cache file
-func writeChallenges(challenges []Challenges, filename, address string, cnt int) error {
+func writeChallenges(challenges []Challenges, filename, address string, start time.Time) error {
 	cache := ChallengeCache{
-		Time:       time.Now().Unix(),
+		CacheTime:  time.Now().Unix(),
 		Address:    address,
-		Count:      cnt,
+		StartDate:  start.Unix(),
 		Challenges: challenges,
 	}
 	b, err := json.MarshalIndent(cache, "", "  ")
@@ -362,28 +371,41 @@ func writeChallenges(challenges []Challenges, filename, address string, cnt int)
 }
 
 // read the cache file
-func loadChallenges(filename, address string, expires int64, cnt int) ([]Challenges, error) {
+func loadChallenges(filename, address string, expires int64, start time.Time) ([]Challenges, error) {
 	cache := ChallengeCache{}
 	bytes, err := ioutil.ReadFile(filename)
 	if err != nil {
 		return []Challenges{}, err
 	}
 	err = json.Unmarshal(bytes, &cache)
+
 	if err != nil {
 		return []Challenges{}, err
 	}
-	if cache.Time+expires < time.Now().Unix() {
+	if cache.CacheTime+expires < time.Now().Unix() {
 		return []Challenges{}, fmt.Errorf("Challenge cache is old.")
 	}
-	if cache.Count != cnt {
-		return []Challenges{}, fmt.Errorf("Challenge cache stored %d instead of %d records.",
-			cache.Count, cnt)
+	recordTime := time.Unix(cache.StartDate, 0)
+	if start.Before(recordTime) {
+		return []Challenges{}, fmt.Errorf("Challenge cache wrong amount of time.")
 	}
 	if cache.Address != address {
 		return []Challenges{}, fmt.Errorf("Challenge cache is for different hotspot.")
 	}
 
-	return cache.Challenges, nil
+	// need to remove any records older than start time
+	challenges := []Challenges{}
+	for _, c := range cache.Challenges {
+		recordTime, err = c.GetTime()
+		if err != nil {
+			return []Challenges{}, err
+		}
+		if start.Before(recordTime) {
+			challenges = append(challenges, c)
+		}
+	}
+
+	return challenges, nil
 }
 
 // returns the max RSSI based on distance
@@ -503,4 +525,15 @@ func (c *Challenges) GetTimestamp() (int64, error) {
 
 	return 0, fmt.Errorf("No data: unable to determine timestamp for %s@%d",
 		c.Type, c.Time)
+}
+
+// Tries to figure out the Time for the given challenge
+func (c *Challenges) GetTime() (time.Time, error) {
+	t, err := c.GetTimestamp()
+	if err != nil {
+		return time.Time{}, err
+	}
+	secs := t / 1000000000
+	nsec := t - (secs * 1000000000)
+	return time.Unix(secs, nsec), nil
 }
