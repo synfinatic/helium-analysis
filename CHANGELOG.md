@@ -1,5 +1,11 @@
 # Helium Analysis Changelog
 
+## Unreleased
+
+- Remove --hotspots flag
+- Add --force-cache flag to always use cache
+- Add SNR data to the graph
+
 ## v0.6.1 - 2021-03-29 
 
 - Fix graphing of invalid PoC.  Now we use the `is_valid` flag provided

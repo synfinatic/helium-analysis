@@ -43,6 +43,8 @@ const (
 	Y_MIN    = -130.0
 	Y_MAX    = -70.0
 	DOT_SIZE = 5
+	SNR_MIN  = -20.0
+	SNR_MAX  = 20.0
 )
 
 // Creates the PNG for the given args
@@ -119,10 +121,12 @@ func generatePeerGraph(address, witness string, results []WitnessResult, min int
 	tx_vals := []float64{}
 	rx_vals := []float64{}
 	thresholds := []float64{}
+	snr := []float64{}
 	tx_valid_vals := []chart.Value2{}
 	rx_valid_vals := []chart.Value2{}
 
 	forceYRange := 1000.0
+	forceSNRRange := 1000.0
 	witnessName, err := getHotspotName(witness)
 	if err != nil {
 		witnessName = witness
@@ -148,6 +152,10 @@ func generatePeerGraph(address, witness string, results []WitnessResult, min int
 		}
 		thresholds = append(thresholds, ret.ValidThreshold)
 		thresholds_x = append(thresholds_x, x)
+		snr = append(snr, ret.Snr)
+		if ret.Snr < SNR_MIN || ret.Snr > SNR_MAX {
+			forceSNRRange = ret.Snr
+		}
 	}
 
 	series := []chart.Series{}
@@ -177,14 +185,6 @@ func generatePeerGraph(address, witness string, results []WitnessResult, min int
 		DotColor:        drawing.ColorBlue,
 		StrokeDashArray: []float64{5.0, 5.0},
 	}
-	/* FIXME: disable for now
-	lineStyle := chart.Style{
-		StrokeWidth: 1,
-		DotWidth:    chart.Disabled,
-		StrokeColor: drawing.ColorRed,
-		//		StrokeDashArray: []float64{5.0, 5.0},
-	}
-	*/
 	dataPoints := 0
 	if len(tx_x) >= min {
 		txSeries := chart.ContinuousSeries{
@@ -233,32 +233,60 @@ func generatePeerGraph(address, witness string, results []WitnessResult, min int
 		return nil, false
 	}
 
-	/* FIXME: disable for now since I don't trust the results
 	thresholdSeries := chart.ContinuousSeries{
 		Name:    "Threshold",
-		Style:   lineStyle,
 		XValues: thresholds_x,
 		YValues: thresholds,
+		Style: chart.Style{
+			StrokeWidth:     1,
+			DotWidth:        chart.Disabled,
+			StrokeColor:     drawing.ColorRed,
+			StrokeDashArray: []float64{5.0, 5.0},
+		},
 	}
 	series = append(series, thresholdSeries)
-	*/
+
+	snrSeries := chart.ContinuousSeries{
+		YAxis:   chart.YAxisSecondary,
+		Name:    "SNR",
+		XValues: thresholds_x,
+		YValues: snr,
+		Style: chart.Style{
+			StrokeWidth:     1,
+			DotWidth:        chart.Disabled,
+			StrokeColor:     chart.ColorYellow,
+			StrokeDashArray: []float64{5.0, 5.0},
+		},
+	}
+	series = append(series, snrSeries)
 
 	lockYRange := true
 	if forceYRange != 1000.0 {
-		log.Warnf("% 2.0fdB is outside of graph defaults.  Unlocking Y axis for %s",
+		log.Warnf("% 2.0fdB is outside of graph defaults.  Unlocking primary Y axis for %s",
 			forceYRange, witnessName)
 		lockYRange = false
+	}
+	lockSNRRange := true
+	if forceSNRRange != 1000.0 {
+		log.Warnf("% 2.0fdB is outside of graph defaults.  Unlocking secondary (SNR) Y axis for %s",
+			forceSNRRange, witnessName)
+		lockSNRRange = false
 	}
 
 	// Zoom in?
 	x_range := chart.ContinuousRange{}
 	y_range := chart.ContinuousRange{}
+	snr_range := chart.ContinuousRange{}
 	if x_min > 0.0 && x_max > 0.0 {
 		x_range.Min = x_min
 		x_range.Max = x_max
 		if lockYRange {
 			y_range.Min = Y_MIN
 			y_range.Max = Y_MAX
+		}
+		if lockSNRRange {
+			snr_range.Min = SNR_MIN
+			snr_range.Max = SNR_MAX
 		}
 	}
 
@@ -289,7 +317,12 @@ func generatePeerGraph(address, witness string, results []WitnessResult, min int
 			ValueFormatter: XValueFormatter,
 			Range:          &x_range,
 		},
+		YAxisSecondary: chart.YAxis{
+			Name:  "SNR db",
+			Range: &snr_range,
+		},
 		YAxis: chart.YAxis{
+			Name:  "RSSI db",
 			Range: &y_range,
 		},
 		Height: HEIGHT,

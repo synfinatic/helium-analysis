@@ -298,6 +298,7 @@ func getWitnessResults(address, witness string, challenges []Challenges) ([]Witn
 					Signal:         wit.Signal,
 					Type:           rxtx,
 					Valid:          wit.IsValid,
+					Snr:            wit.Snr,
 					ValidThreshold: minRssiPerSnr(wit.Snr),
 					Km:             km,
 					Mi:             mi,
@@ -375,7 +376,7 @@ func writeChallenges(challenges []Challenges, filename, address string, start ti
 }
 
 // read the cache file
-func loadChallenges(filename, address string, expires int64, start time.Time) ([]Challenges, error) {
+func loadChallenges(filename, address string, expires int64, start time.Time, forceCache bool) ([]Challenges, error) {
 	cache := ChallengeCache{}
 	bytes, err := ioutil.ReadFile(filename)
 	if err != nil {
@@ -386,7 +387,7 @@ func loadChallenges(filename, address string, expires int64, start time.Time) ([
 	if err != nil {
 		return []Challenges{}, err
 	}
-	if cache.CacheTime+expires < time.Now().Unix() {
+	if !forceCache && cache.CacheTime+expires < time.Now().Unix() {
 		return []Challenges{}, fmt.Errorf("Challenge cache is old.")
 	}
 	recordTime := time.Unix(cache.StartDate, 0)
