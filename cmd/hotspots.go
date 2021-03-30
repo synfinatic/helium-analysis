@@ -114,29 +114,30 @@ func getHotspotAddress(name string) (string, error) {
 	return "", fmt.Errorf("Unable to find %s in hotspot cache", name)
 }
 
-// Loads our hotspots from the cachefile
-func loadHotspots(filename string, forceCache bool) error {
+// Loads our hotspots from the cachefile returns true if should be refreshed
+func loadHotspots(filename string) (error, bool) {
 	file, err := ioutil.ReadFile(filename)
 	if err != nil {
-		return err
+		return err, false
 	}
 	cache := HotspotCache{}
 	err = json.Unmarshal(file, &cache)
 	if err != nil {
-		return err
+		return err, false
 	}
 
 	age := time.Now().Unix() - cache.Time
-	if !forceCache && age > HOTSPOT_CACHE_TIMEOUT {
-		log.Warnf("Hotspot cache is %dhrs old.  You may want to refresh via --hotspots",
-			age/60/60)
+	tooOld := false
+	if age > HOTSPOT_CACHE_TIMEOUT {
+		log.Warnf("Hotspot cache is %dhrs old.", age/60/60)
+		tooOld = true
 	}
 
 	for _, v := range cache.Hotspots {
 		HOTSPOT_CACHE[v.Address] = v
 	}
 	log.Debugf("Loaded hotspot cache")
-	return nil
+	return nil, tooOld
 
 }
 

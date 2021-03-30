@@ -37,7 +37,7 @@ const CHALLENGES_CACHE_FILE = "challenges.json"
 const CHALLENGES_CACHE_EXPIRES = 1 // 1 hr
 
 func main() {
-	var debug, version, zoom, noCache, forceCache bool
+	var debug, version, zoom, noCache, forceCache, generateJson bool
 	var address, challengeCache, name string
 	var min, days int
 	var challengesExpires int64
@@ -54,7 +54,7 @@ func main() {
 	flag.Int64Var(&challengesExpires, "expires", CHALLENGES_CACHE_EXPIRES, "Challenge cache timeout (hrs)")
 	flag.BoolVar(&noCache, "no-cache", false, "Disable loading/reading challenges cache")
 	flag.BoolVar(&forceCache, "force-cache", false, "Force using existing cache and skip API calls")
-
+	flag.BoolVar(&generateJson, "json", false, "Generate per-graph JSON reports")
 	flag.Parse()
 
 	if debug == true {
@@ -79,14 +79,22 @@ func main() {
 		log.Fatalf("Please specify a --min value >= 2")
 	}
 
-	err = loadHotspots(HOTSPOT_CACHE_FILE, forceCache)
+	refreshHotspots := false
+	err, tooOld := loadHotspots(HOTSPOT_CACHE_FILE)
 	if err != nil {
 		log.WithError(err).Warn("Unable to load hotspot cache.  Refreshing...")
+		refreshHotspots = true
+	} else if tooOld && !forceCache {
+		log.Infof("Refreshing...")
+		refreshHotspots = true
+	}
+
+	if refreshHotspots {
 		err = downloadHotspots(HOTSPOT_CACHE_FILE)
 		if err != nil {
 			log.WithError(err).Fatalf("Unable to load hotspots.")
 		}
-		err = loadHotspots(HOTSPOT_CACHE_FILE, forceCache)
+		err, _ = loadHotspots(HOTSPOT_CACHE_FILE)
 		if err != nil {
 			log.WithError(err).Fatalf("Unable to load new hotspot cache")
 		}
@@ -128,5 +136,5 @@ func main() {
 		}
 	}
 
-	generatePeerGraphs(address, c, min, zoom)
+	generatePeerGraphs(address, c, min, zoom, generateJson)
 }

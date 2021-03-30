@@ -1,10 +1,14 @@
 # Helium Analysis Changelog
 
-## Unreleased
+## v0.7.0 - 2021-03-30
 
 - Remove --hotspots flag
 - Add --force-cache flag to always use cache
 - Add SNR data to the graph
+- Add max valid witness RSSI strength to the graph
+- Fix bug where other witness were incorrectly included in the graphs
+- Add --json flag to dump per-hotspot challenge info
+- Add hash to witness cache for debugging purposes
 
 ## v0.6.1 - 2021-03-29 
 

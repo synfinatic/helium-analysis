@@ -19,13 +19,14 @@ package main
  */
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"strconv"
 	"time"
 
 	"github.com/wcharczuk/go-chart/v2"
-	"github.com/wcharczuk/go-chart/v2/drawing"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -44,7 +45,7 @@ const (
 	Y_MAX    = -70.0
 	DOT_SIZE = 5
 	SNR_MIN  = -20.0
-	SNR_MAX  = 20.0
+	SNR_MAX  = 16.0
 )
 
 // Creates the PNG for the given args
@@ -103,7 +104,7 @@ func generateGraph(address string, direction RXTX, results []ChallengeResult, fi
 	log.Infof("Created %s", filename)
 }
 
-func generatePeerGraph(address, witness string, results []WitnessResult, min int, x_min, x_max float64, join_time int64) (error, bool) {
+func generatePeerGraph(address, witness string, results []WitnessResult, min int, x_min, x_max float64, join_time int64, generateJson bool) (error, bool) {
 	a, err := getHotspotName(address)
 	if err != nil {
 		return err, false
@@ -113,6 +114,7 @@ func generatePeerGraph(address, witness string, results []WitnessResult, min int
 		return err, false
 	}
 	filename := fmt.Sprintf("%s:%s.png", a, b)
+	jsonFilename := fmt.Sprintf("%s:%s.json", a, b)
 
 	tx_x := []float64{}
 	rx_x := []float64{}
@@ -162,27 +164,27 @@ func generatePeerGraph(address, witness string, results []WitnessResult, min int
 	styleRx := chart.Style{
 		StrokeWidth: chart.Disabled,
 		DotWidth:    DOT_SIZE,
-		StrokeColor: drawing.ColorGreen,
-		DotColor:    drawing.ColorGreen,
+		StrokeColor: chart.ColorGreen,
+		DotColor:    chart.ColorGreen,
 	}
 	styleRxAvg := chart.Style{
 		StrokeWidth:     1,
 		DotWidth:        chart.Disabled,
-		StrokeColor:     drawing.ColorGreen,
-		DotColor:        drawing.ColorGreen,
+		StrokeColor:     chart.ColorGreen,
+		DotColor:        chart.ColorGreen,
 		StrokeDashArray: []float64{5.0, 5.0},
 	}
 	styleTx := chart.Style{
 		StrokeWidth: chart.Disabled,
 		DotWidth:    DOT_SIZE,
-		StrokeColor: drawing.ColorBlue,
-		DotColor:    drawing.ColorBlue,
+		StrokeColor: chart.ColorBlue,
+		DotColor:    chart.ColorBlue,
 	}
 	styleTxAvg := chart.Style{
 		StrokeWidth:     1,
 		DotWidth:        chart.Disabled,
-		StrokeColor:     drawing.ColorBlue,
-		DotColor:        drawing.ColorBlue,
+		StrokeColor:     chart.ColorBlue,
+		DotColor:        chart.ColorBlue,
 		StrokeDashArray: []float64{5.0, 5.0},
 	}
 	dataPoints := 0
@@ -233,18 +235,32 @@ func generatePeerGraph(address, witness string, results []WitnessResult, min int
 		return nil, false
 	}
 
+	if err != nil {
+		log.Fatalf("%s", err)
+	}
 	thresholdSeries := chart.ContinuousSeries{
-		Name:    "Threshold",
+		Name:    "MinValid",
 		XValues: thresholds_x,
 		YValues: thresholds,
 		Style: chart.Style{
 			StrokeWidth:     1,
 			DotWidth:        chart.Disabled,
-			StrokeColor:     drawing.ColorRed,
+			StrokeColor:     chart.ColorOrange,
 			StrokeDashArray: []float64{5.0, 5.0},
 		},
 	}
 	series = append(series, thresholdSeries)
+	series = append(series, chart.ContinuousSeries{
+		Name:    fmt.Sprintf("MaxValid %.02f", maxRssi(results[0].Km)),
+		XValues: []float64{thresholds_x[0], thresholds_x[len(thresholds_x)-1]},
+		YValues: []float64{maxRssi(results[0].Km), maxRssi(results[0].Km)},
+		Style: chart.Style{
+			StrokeWidth:     1,
+			DotWidth:        chart.Disabled,
+			StrokeColor:     chart.ColorRed,
+			StrokeDashArray: []float64{5.0, 5.0},
+		},
+	})
 
 	snrSeries := chart.ContinuousSeries{
 		YAxis:   chart.YAxisSecondary,
@@ -340,6 +356,14 @@ func generatePeerGraph(address, witness string, results []WitnessResult, min int
 	defer f.Close()
 	graph.Render(chart.PNG, f)
 	log.Infof("Created %s with %d data points", filename, dataPoints)
+
+	if generateJson {
+		jdata, err := json.MarshalIndent(results, "", "  ")
+		if err != nil {
+			return err, true
+		}
+		ioutil.WriteFile(jsonFilename, jdata, 0644)
+	}
 	return nil, true
 }
 
@@ -364,7 +388,7 @@ func getListOfAddresses(challenges []Challenges) ([]string, error) {
 	return ret, nil
 }
 
-func generatePeerGraphs(address string, challenges []Challenges, min int, zoom bool) {
+func generatePeerGraphs(address string, challenges []Challenges, min int, zoom, generateJson bool) {
 	addresses, err := getListOfAddresses(challenges)
 	if err != nil {
 		log.WithError(err).Fatalf("Unable to get addresses")
@@ -401,7 +425,7 @@ func generatePeerGraphs(address string, challenges []Challenges, min int, zoom b
 			join_time, err = getTimeForHeight(host.BlockAdded, challenges)
 		}
 
-		err, generated := generatePeerGraph(address, peer, wr, min, x_min, x_max, join_time)
+		err, generated := generatePeerGraph(address, peer, wr, min, x_min, x_max, join_time, generateJson)
 		if err != nil {
 			log.WithError(err).Errorf("Unable to generate graph")
 		}
