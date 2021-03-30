@@ -112,17 +112,18 @@ type ChallengeResult struct {
 }
 
 type WitnessResult struct {
-	Timestamp      int64
-	Address        string
-	Witness        string
-	Type           RXTX
-	Signal         int
-	Valid          bool
-	Km             float64
-	Mi             float64
-	Location       string
-	Snr            float64
-	ValidThreshold float64
+	Timestamp      int64   `json:"timestamp"`
+	Address        string  `json:"address"`
+	Witness        string  `json:"witness"`
+	Type           RXTX    `json:"type"`
+	Signal         int     `json:"signal"`
+	Valid          bool    `json:"valid"`
+	Km             float64 `json:"km"`
+	Mi             float64 `json:"mi"`
+	Location       string  `json:"location"`
+	Snr            float64 `json:"snr"`
+	ValidThreshold float64 `json:"valid_threshold"`
+	Hash           string  `json:"hash"`
 }
 
 const CHALLENGE_URL = "https://api.helium.io/v1/hotspots/%s/challenges"
@@ -258,24 +259,35 @@ func getRxResults(address string, challenges []Challenges) ([]ChallengeResult, e
 
 func getWitnessResults(address, witness string, challenges []Challenges) ([]WitnessResult, error) {
 	results := []WitnessResult{}
+	aHost, err := getHotspot(address)
+	if err != nil {
+		return []WitnessResult{}, err
+	}
+
 	for _, entry := range challenges {
 		if entry.Type != "poc_receipts_v1" {
 			log.Warnf("unexpected entry type: %s", entry.Type)
 			continue
 		}
-		aHost, err := getHotspot(address)
-		if err != nil {
-			return []WitnessResult{}, err
-		}
-
 		for _, path := range *entry.Path {
 			var rxtx RXTX = RX
-			if path.Challengee != address {
+			if path.Challengee == address {
 				rxtx = TX
 			}
 
 			for _, wit := range *path.Witnesses {
-				if wit.Gateway != witness {
+				/*
+					// ignore anything that isn't between the two address we care about
+					if wit.Gateway != witness {
+						continue
+					}
+				*/
+				// ignore witness for beacons not sent by us or when we're not the challengee
+				if address == wit.Gateway {
+					continue
+				} else if rxtx == TX && wit.Gateway != witness {
+					continue
+				} else if rxtx == RX && wit.Gateway != address {
 					continue
 				}
 
@@ -303,6 +315,7 @@ func getWitnessResults(address, witness string, challenges []Challenges) ([]Witn
 					Km:             km,
 					Mi:             mi,
 					Location:       wit.Location,
+					Hash:           entry.Hash,
 				})
 			}
 		}
@@ -419,50 +432,50 @@ func maxRssi(km float64) float64 {
 	if km < 0.001 {
 		return -1000.0
 	}
-	return 28.0 + 1.8*2 - (20.0*math.Log10(km) + 20.0*math.Log10(915.0) + 32.44)
+	return 28.0 + 1.8*2 - (20.0 * math.Log10(km)) - (20.0 * math.Log10(915.0)) - 32.44
 }
 
 // Not sure why it is a list of values at the end???
-// Table is map[SNR][0] = minimum valid RSSI
+// Table is map[SNR] = minimum valid RSSI
 // Stolen from: https://github.com/Carniverous19/helium_analysis_tools.git
-var SnrTable = map[int][]int{
-	16:  {-90, -35},
-	14:  {-90, -35},
-	13:  {-90, -35},
-	15:  {-90, -35},
-	12:  {-90, -35},
-	11:  {-90, -35},
-	10:  {-90, -40},
-	9:   {-95, -45},
-	8:   {-105, -45},
-	7:   {-108, -45},
-	6:   {-113, -100},
-	5:   {-115, -100},
-	4:   {-115, -112},
-	3:   {-115, -112},
-	2:   {-117, -112},
-	1:   {-120, -117},
-	0:   {-125, -125},
-	-1:  {-125, -125},
-	-2:  {-125, -125},
-	-3:  {-125, -125},
-	-4:  {-125, -125},
-	-5:  {-125, -125},
-	-6:  {-124, -124},
-	-7:  {-123, -123},
-	-8:  {-125, -125},
-	-9:  {-125, -125},
-	-10: {-125, -125},
-	-11: {-125, -125},
-	-12: {-125, -125},
-	-13: {-125, -125},
-	-14: {-125, -125},
-	-15: {-124, -124},
-	-16: {-123, -123},
-	-17: {-123, -123},
-	-18: {-123, -123},
-	-19: {-123, -123},
-	-20: {-123, -123},
+var SnrTable = map[int]int{
+	16:  -90,
+	14:  -90,
+	13:  -90,
+	15:  -90,
+	12:  -90,
+	11:  -90,
+	10:  -90,
+	9:   -95,
+	8:   -105,
+	7:   -108,
+	6:   -113,
+	5:   -115,
+	4:   -115,
+	3:   -115,
+	2:   -117,
+	1:   -120,
+	0:   -125,
+	-1:  -125,
+	-2:  -125,
+	-3:  -125,
+	-4:  -125,
+	-5:  -125,
+	-6:  -124,
+	-7:  -123,
+	-8:  -125,
+	-9:  -125,
+	-10: -125,
+	-11: -125,
+	-12: -125,
+	-13: -125,
+	-14: -125,
+	-15: -124,
+	-16: -123,
+	-17: -123,
+	-18: -123,
+	-19: -123,
+	-20: -123,
 }
 
 // returns the minimum valid RSSI at a given SNR
@@ -472,7 +485,7 @@ func minRssiPerSnr(snr float64) float64 {
 	if !ok {
 		return 1000.0
 	}
-	return float64(v[0])
+	return float64(v)
 }
 
 // Get the haversine distance between two node addresses
