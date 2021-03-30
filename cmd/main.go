@@ -37,7 +37,7 @@ const CHALLENGES_CACHE_FILE = "challenges.json"
 const CHALLENGES_CACHE_EXPIRES = 1 // 1 hr
 
 func main() {
-	var debug, version, hotspots, zoom, noCache bool
+	var debug, version, zoom, noCache, forceCache bool
 	var address, challengeCache, name string
 	var min, days int
 	var challengesExpires int64
@@ -48,12 +48,12 @@ func main() {
 	flag.StringVar(&address, "address", "", "Hotspot address to report on")
 	flag.StringVar(&name, "name", "", "Hotspot name to report on")
 	flag.IntVar(&days, "days", 30, "Set starting point in days")
-	flag.BoolVar(&hotspots, "hotspots", false, "Download a current list of hotspots and exit")
 	flag.IntVar(&min, "min", 5, "Minimum challenges required to graph")
 	flag.BoolVar(&zoom, "zoom", false, "Unfix X/Y axis to zoom in")
 	flag.StringVar(&challengeCache, "cache", CHALLENGES_CACHE_FILE, "Challenges cache file")
 	flag.Int64Var(&challengesExpires, "expires", CHALLENGES_CACHE_EXPIRES, "Challenge cache timeout (hrs)")
 	flag.BoolVar(&noCache, "no-cache", false, "Disable loading/reading challenges cache")
+	flag.BoolVar(&forceCache, "force-cache", false, "Force using existing cache and skip API calls")
 
 	flag.Parse()
 
@@ -79,22 +79,14 @@ func main() {
 		log.Fatalf("Please specify a --min value >= 2")
 	}
 
-	if hotspots {
-		err = downloadHotspots(HOTSPOT_CACHE_FILE)
-		if err != nil {
-			log.WithError(err).Fatalf("Unable to load hotspots")
-		}
-		os.Exit(0)
-	}
-
-	err = loadHotspots(HOTSPOT_CACHE_FILE)
+	err = loadHotspots(HOTSPOT_CACHE_FILE, forceCache)
 	if err != nil {
 		log.WithError(err).Warn("Unable to load hotspot cache.  Refreshing...")
 		err = downloadHotspots(HOTSPOT_CACHE_FILE)
 		if err != nil {
 			log.WithError(err).Fatalf("Unable to load hotspots.")
 		}
-		err = loadHotspots(HOTSPOT_CACHE_FILE)
+		err = loadHotspots(HOTSPOT_CACHE_FILE, forceCache)
 		if err != nil {
 			log.WithError(err).Fatalf("Unable to load new hotspot cache")
 		}
@@ -123,7 +115,7 @@ func main() {
 			log.Fatalf("%s", err)
 		}
 	} else {
-		c, err = loadChallenges(CHALLENGES_CACHE_FILE, address, challengesExpires*3600, start)
+		c, err = loadChallenges(CHALLENGES_CACHE_FILE, address, challengesExpires*3600, start, forceCache)
 		if err != nil {
 			log.WithError(err).Warnf("Unable to load challenges file. Refreshing...")
 			c, err = fetchChallenges(address, start)

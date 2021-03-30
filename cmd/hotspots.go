@@ -115,7 +115,7 @@ func getHotspotAddress(name string) (string, error) {
 }
 
 // Loads our hotspots from the cachefile
-func loadHotspots(filename string) error {
+func loadHotspots(filename string, forceCache bool) error {
 	file, err := ioutil.ReadFile(filename)
 	if err != nil {
 		return err
@@ -127,7 +127,7 @@ func loadHotspots(filename string) error {
 	}
 
 	age := time.Now().Unix() - cache.Time
-	if age > HOTSPOT_CACHE_TIMEOUT {
+	if !forceCache && age > HOTSPOT_CACHE_TIMEOUT {
 		log.Warnf("Hotspot cache is %dhrs old.  You may want to refresh via --hotspots",
 			age/60/60)
 	}
