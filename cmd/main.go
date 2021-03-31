@@ -49,7 +49,7 @@ func main() {
 	flag.StringVar(&name, "name", "", "Hotspot name to report on")
 	flag.IntVar(&days, "days", 30, "Set starting point in days")
 	flag.IntVar(&min, "min", 5, "Minimum challenges required to graph")
-	flag.BoolVar(&zoom, "zoom", false, "Unfix X/Y axis to zoom in")
+	//	flag.BoolVar(&zoom, "zoom", false, "Unfix X/Y axis to zoom in")
 	flag.StringVar(&challengeCache, "cache", CHALLENGES_CACHE_FILE, "Challenges cache file")
 	flag.Int64Var(&challengesExpires, "expires", CHALLENGES_CACHE_EXPIRES, "Challenge cache timeout (hrs)")
 	flag.BoolVar(&noCache, "no-cache", false, "Disable loading/reading challenges cache")

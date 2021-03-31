@@ -276,14 +276,8 @@ func getWitnessResults(address, witness string, challenges []Challenges) ([]Witn
 			}
 
 			for _, wit := range *path.Witnesses {
-				/*
-					// ignore anything that isn't between the two address we care about
-					if wit.Gateway != witness {
-						continue
-					}
-				*/
 				// ignore witness for beacons not sent by us or when we're not the challengee
-				if address == wit.Gateway {
+				if address == wit.Gateway && path.Challengee != witness {
 					continue
 				} else if rxtx == TX && wit.Gateway != witness {
 					continue

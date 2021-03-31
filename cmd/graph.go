@@ -43,7 +43,7 @@ const (
 	WIDTH    = 1024
 	Y_MIN    = -130.0
 	Y_MAX    = -70.0
-	DOT_SIZE = 5
+	DOT_SIZE = 3
 	SNR_MIN  = -20.0
 	SNR_MAX  = 16.0
 )
@@ -124,8 +124,10 @@ func generatePeerGraph(address, witness string, results []WitnessResult, min int
 	rx_vals := []float64{}
 	thresholds := []float64{}
 	snr := []float64{}
-	tx_valid_vals := []chart.Value2{}
-	rx_valid_vals := []chart.Value2{}
+	tx_invalid_x := []float64{}
+	rx_invalid_x := []float64{}
+	tx_invalid_vals := []float64{}
+	rx_invalid_vals := []float64{}
 
 	forceYRange := 1000.0
 	forceSNRRange := 1000.0
@@ -140,16 +142,20 @@ func generatePeerGraph(address, witness string, results []WitnessResult, min int
 			forceYRange = y
 		}
 		if ret.Type == RX {
-			rx_x = append(rx_x, x)
-			rx_vals = append(rx_vals, y)
 			if !ret.Valid {
-				rx_valid_vals = append(rx_valid_vals, chart.Value2{XValue: x, YValue: y, Label: "Invalid"})
+				rx_invalid_vals = append(rx_invalid_vals, y)
+				rx_invalid_x = append(rx_invalid_x, x)
+			} else {
+				rx_x = append(rx_x, x)
+				rx_vals = append(rx_vals, y)
 			}
 		} else {
-			tx_x = append(tx_x, x)
-			tx_vals = append(tx_vals, y)
 			if !ret.Valid {
-				tx_valid_vals = append(tx_valid_vals, chart.Value2{XValue: x, YValue: y, Label: "Invalid"})
+				tx_invalid_vals = append(tx_invalid_vals, y)
+				tx_invalid_x = append(tx_invalid_x, x)
+			} else {
+				tx_x = append(tx_x, x)
+				tx_vals = append(tx_vals, y)
 			}
 		}
 		thresholds = append(thresholds, ret.ValidThreshold)
@@ -167,6 +173,12 @@ func generatePeerGraph(address, witness string, results []WitnessResult, min int
 		StrokeColor: chart.ColorGreen,
 		DotColor:    chart.ColorGreen,
 	}
+	styleRxInvalid := chart.Style{
+		StrokeWidth: chart.Disabled,
+		DotWidth:    DOT_SIZE,
+		DotColor:    chart.ColorYellow,
+		StrokeColor: chart.ColorYellow,
+	}
 	styleRxAvg := chart.Style{
 		StrokeWidth:     1,
 		DotWidth:        chart.Disabled,
@@ -180,6 +192,12 @@ func generatePeerGraph(address, witness string, results []WitnessResult, min int
 		StrokeColor: chart.ColorBlue,
 		DotColor:    chart.ColorBlue,
 	}
+	styleTxInvalid := chart.Style{
+		StrokeWidth: chart.Disabled,
+		DotWidth:    DOT_SIZE,
+		DotColor:    chart.ColorRed,
+		StrokeColor: chart.ColorRed,
+	}
 	styleTxAvg := chart.Style{
 		StrokeWidth:     1,
 		DotWidth:        chart.Disabled,
@@ -190,43 +208,47 @@ func generatePeerGraph(address, witness string, results []WitnessResult, min int
 	dataPoints := 0
 	if len(tx_x) >= min {
 		txSeries := chart.ContinuousSeries{
-			Name:    "TX Signal",
+			Name:    fmt.Sprintf("TX Signal (%d)", len(tx_x)),
 			Style:   styleTx,
 			XValues: tx_x,
 			YValues: tx_vals,
 		}
 
 		txSmaSeries := &chart.SMASeries{
-			Name:        "TX Average",
 			Style:       styleTxAvg,
 			InnerSeries: txSeries,
 		}
 
-		txValidSeries := chart.AnnotationSeries{
-			Annotations: tx_valid_vals,
+		txInvalidSeries := chart.ContinuousSeries{
+			Name:    fmt.Sprintf("InvalidTX (%d)", len(tx_invalid_x)),
+			Style:   styleTxInvalid,
+			XValues: tx_invalid_x,
+			YValues: tx_invalid_vals,
 		}
-		series = append(series, txSeries, txSmaSeries, txValidSeries)
-		dataPoints += len(tx_x)
+		series = append(series, txSeries, txSmaSeries, txInvalidSeries)
+		dataPoints += len(tx_x) + len(tx_invalid_x)
 	}
 
 	if len(rx_x) >= min {
 		rxSeries := chart.ContinuousSeries{
-			Name:    "RX Signal",
+			Name:    fmt.Sprintf("RX Signal (%d)", len(rx_x)),
 			Style:   styleRx,
 			XValues: rx_x,
 			YValues: rx_vals,
 		}
 
 		rxSmaSeries := &chart.SMASeries{
-			Name:        "RX Average",
 			Style:       styleRxAvg,
 			InnerSeries: rxSeries,
 		}
-		rxValidSeries := chart.AnnotationSeries{
-			Annotations: rx_valid_vals,
+		rxInvalidSeries := chart.ContinuousSeries{
+			Name:    fmt.Sprintf("InvalidRX (%d)", len(rx_invalid_x)),
+			Style:   styleRxInvalid,
+			XValues: rx_invalid_x,
+			YValues: rx_invalid_vals,
 		}
-		series = append(series, rxSeries, rxSmaSeries, rxValidSeries)
-		dataPoints += len(rx_x)
+		series = append(series, rxSeries, rxSmaSeries, rxInvalidSeries)
+		dataPoints += len(rx_x) + len(rx_invalid_x)
 	}
 
 	if len(series) == 0 {
@@ -239,7 +261,7 @@ func generatePeerGraph(address, witness string, results []WitnessResult, min int
 		log.Fatalf("%s", err)
 	}
 	thresholdSeries := chart.ContinuousSeries{
-		Name:    "MinValid",
+		Name:    "MinValid RSSI",
 		XValues: thresholds_x,
 		YValues: thresholds,
 		Style: chart.Style{
@@ -251,7 +273,7 @@ func generatePeerGraph(address, witness string, results []WitnessResult, min int
 	}
 	series = append(series, thresholdSeries)
 	series = append(series, chart.ContinuousSeries{
-		Name:    fmt.Sprintf("MaxValid %.02f", maxRssi(results[0].Km)),
+		Name:    fmt.Sprintf("MaxValid RSSI (%.02f)", maxRssi(results[0].Km)),
 		XValues: []float64{thresholds_x[0], thresholds_x[len(thresholds_x)-1]},
 		YValues: []float64{maxRssi(results[0].Km), maxRssi(results[0].Km)},
 		Style: chart.Style{
@@ -307,16 +329,15 @@ func generatePeerGraph(address, witness string, results []WitnessResult, min int
 	}
 
 	// marker for when hotspot joined
-	join_vals := []chart.Value2{}
 	if join_time > 0 && float64(join_time) > x_min {
-		join_vals = append(join_vals, chart.Value2{
-			XValue: float64(join_time), YValue: -100.0, Label: "Joined"})
+		series = append(series,
+			chart.AnnotationSeries{
+				Annotations: []chart.Value2{
+					{XValue: float64(join_time), YValue: -70.0, Label: "Joined"},
+				},
+			},
+		)
 	}
-	series = append(series,
-		chart.AnnotationSeries{
-			Annotations: join_vals,
-		},
-	)
 
 	title := fmt.Sprintf("%s <=> %s (%.02fkm/%.02fmi)", a, b, results[0].Km, results[0].Mi)
 	graph := chart.Chart{
