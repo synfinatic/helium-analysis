@@ -1,5 +1,11 @@
 # Helium Analysis Changelog
 
+## Unreleased
+
+- Add online status & reward scale of remote node
+- Connect avg lines when there is invalid PoC
+- Code cleanup
+
 ## v0.7.1 - 2021-03-30
 
 - Disable --zoom flag as it is broken

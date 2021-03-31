@@ -23,8 +23,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"strconv"
-	"time"
 
 	"github.com/wcharczuk/go-chart/v2"
 
@@ -116,17 +114,17 @@ func generatePeerGraph(address, witness string, results []WitnessResult, min int
 	filename := fmt.Sprintf("%s:%s.png", a, b)
 	jsonFilename := fmt.Sprintf("%s:%s.json", a, b)
 
-	tx_x := []float64{}
-	rx_x := []float64{}
 	thresholds_x := []float64{}
-
-	tx_vals := []float64{}
-	rx_vals := []float64{}
-	thresholds := []float64{}
+	thresholds_vals := []float64{}
 	snr := []float64{}
+
+	tx_x := []float64{}
+	tx_vals := []float64{}
+	rx_x := []float64{}
+	rx_vals := []float64{}
 	tx_invalid_x := []float64{}
-	rx_invalid_x := []float64{}
 	tx_invalid_vals := []float64{}
+	rx_invalid_x := []float64{}
 	rx_invalid_vals := []float64{}
 
 	forceYRange := 1000.0
@@ -143,22 +141,22 @@ func generatePeerGraph(address, witness string, results []WitnessResult, min int
 		}
 		if ret.Type == RX {
 			if !ret.Valid {
-				rx_invalid_vals = append(rx_invalid_vals, y)
 				rx_invalid_x = append(rx_invalid_x, x)
+				rx_invalid_vals = append(rx_invalid_vals, y)
 			} else {
 				rx_x = append(rx_x, x)
 				rx_vals = append(rx_vals, y)
 			}
 		} else {
 			if !ret.Valid {
-				tx_invalid_vals = append(tx_invalid_vals, y)
 				tx_invalid_x = append(tx_invalid_x, x)
+				tx_invalid_vals = append(tx_invalid_vals, y)
 			} else {
 				tx_x = append(tx_x, x)
 				tx_vals = append(tx_vals, y)
 			}
 		}
-		thresholds = append(thresholds, ret.ValidThreshold)
+		thresholds_vals = append(thresholds_vals, ret.ValidThreshold)
 		thresholds_x = append(thresholds_x, x)
 		snr = append(snr, ret.Snr)
 		if ret.Snr < SNR_MIN || ret.Snr > SNR_MAX {
@@ -167,61 +165,49 @@ func generatePeerGraph(address, witness string, results []WitnessResult, min int
 	}
 
 	series := []chart.Series{}
-	styleRx := chart.Style{
-		StrokeWidth: chart.Disabled,
-		DotWidth:    DOT_SIZE,
-		StrokeColor: chart.ColorGreen,
-		DotColor:    chart.ColorGreen,
-	}
-	styleRxInvalid := chart.Style{
-		StrokeWidth: chart.Disabled,
-		DotWidth:    DOT_SIZE,
-		DotColor:    chart.ColorYellow,
-		StrokeColor: chart.ColorYellow,
-	}
-	styleRxAvg := chart.Style{
-		StrokeWidth:     1,
-		DotWidth:        chart.Disabled,
-		StrokeColor:     chart.ColorGreen,
-		DotColor:        chart.ColorGreen,
-		StrokeDashArray: []float64{5.0, 5.0},
-	}
-	styleTx := chart.Style{
-		StrokeWidth: chart.Disabled,
-		DotWidth:    DOT_SIZE,
-		StrokeColor: chart.ColorBlue,
-		DotColor:    chart.ColorBlue,
-	}
-	styleTxInvalid := chart.Style{
-		StrokeWidth: chart.Disabled,
-		DotWidth:    DOT_SIZE,
-		DotColor:    chart.ColorRed,
-		StrokeColor: chart.ColorRed,
-	}
-	styleTxAvg := chart.Style{
-		StrokeWidth:     1,
-		DotWidth:        chart.Disabled,
-		StrokeColor:     chart.ColorBlue,
-		DotColor:        chart.ColorBlue,
-		StrokeDashArray: []float64{5.0, 5.0},
-	}
+
 	dataPoints := 0
 	if len(tx_x) >= min {
 		txSeries := chart.ContinuousSeries{
-			Name:    fmt.Sprintf("TX Signal (%d)", len(tx_x)),
-			Style:   styleTx,
+			Name: fmt.Sprintf("TX Signal (%d)", len(tx_x)),
+			Style: chart.Style{
+				StrokeWidth: chart.Disabled,
+				DotWidth:    DOT_SIZE,
+				StrokeColor: chart.ColorBlue,
+				DotColor:    chart.ColorBlue,
+			},
 			XValues: tx_x,
 			YValues: tx_vals,
 		}
 
+		hidden_x, hidden_y := MergeTwoSeries(tx_x, tx_vals, tx_invalid_x, tx_invalid_vals)
+		txHiddenSeries := chart.ContinuousSeries{
+			XValues: hidden_x,
+			YValues: hidden_y,
+			Style: chart.Style{
+				Hidden: true,
+			},
+		}
+
 		txSmaSeries := &chart.SMASeries{
-			Style:       styleTxAvg,
-			InnerSeries: txSeries,
+			Style: chart.Style{
+				StrokeWidth:     1,
+				DotWidth:        chart.Disabled,
+				StrokeColor:     chart.ColorBlue,
+				DotColor:        chart.ColorBlue,
+				StrokeDashArray: []float64{5.0, 5.0},
+			},
+			InnerSeries: txHiddenSeries,
 		}
 
 		txInvalidSeries := chart.ContinuousSeries{
-			Name:    fmt.Sprintf("InvalidTX (%d)", len(tx_invalid_x)),
-			Style:   styleTxInvalid,
+			Name: fmt.Sprintf("InvalidTX (%d)", len(tx_invalid_x)),
+			Style: chart.Style{
+				StrokeWidth: chart.Disabled,
+				DotWidth:    DOT_SIZE,
+				DotColor:    chart.ColorRed,
+				StrokeColor: chart.ColorRed,
+			},
 			XValues: tx_invalid_x,
 			YValues: tx_invalid_vals,
 		}
@@ -231,19 +217,45 @@ func generatePeerGraph(address, witness string, results []WitnessResult, min int
 
 	if len(rx_x) >= min {
 		rxSeries := chart.ContinuousSeries{
-			Name:    fmt.Sprintf("RX Signal (%d)", len(rx_x)),
-			Style:   styleRx,
+			Name: fmt.Sprintf("RX Signal (%d)", len(rx_x)),
+			Style: chart.Style{
+				StrokeWidth: chart.Disabled,
+				DotWidth:    DOT_SIZE,
+				StrokeColor: chart.ColorGreen,
+				DotColor:    chart.ColorGreen,
+			},
 			XValues: rx_x,
 			YValues: rx_vals,
 		}
 
-		rxSmaSeries := &chart.SMASeries{
-			Style:       styleRxAvg,
-			InnerSeries: rxSeries,
+		hidden_x, hidden_y := MergeTwoSeries(rx_x, rx_vals, rx_invalid_x, rx_invalid_vals)
+		rxHiddenSeries := chart.ContinuousSeries{
+			XValues: hidden_x,
+			YValues: hidden_y,
+			Style: chart.Style{
+				Hidden: true,
+			},
 		}
+
+		rxSmaSeries := &chart.SMASeries{
+			Style: chart.Style{
+				StrokeWidth:     1,
+				DotWidth:        chart.Disabled,
+				StrokeColor:     chart.ColorGreen,
+				DotColor:        chart.ColorGreen,
+				StrokeDashArray: []float64{5.0, 5.0},
+			},
+			InnerSeries: rxHiddenSeries,
+		}
+
 		rxInvalidSeries := chart.ContinuousSeries{
-			Name:    fmt.Sprintf("InvalidRX (%d)", len(rx_invalid_x)),
-			Style:   styleRxInvalid,
+			Name: fmt.Sprintf("InvalidRX (%d)", len(rx_invalid_x)),
+			Style: chart.Style{
+				StrokeWidth: chart.Disabled,
+				DotWidth:    DOT_SIZE,
+				DotColor:    chart.ColorYellow,
+				StrokeColor: chart.ColorYellow,
+			},
 			XValues: rx_invalid_x,
 			YValues: rx_invalid_vals,
 		}
@@ -263,7 +275,7 @@ func generatePeerGraph(address, witness string, results []WitnessResult, min int
 	thresholdSeries := chart.ContinuousSeries{
 		Name:    "MinValid RSSI",
 		XValues: thresholds_x,
-		YValues: thresholds,
+		YValues: thresholds_vals,
 		Style: chart.Style{
 			StrokeWidth:     1,
 			DotWidth:        chart.Disabled,
@@ -339,7 +351,10 @@ func generatePeerGraph(address, witness string, results []WitnessResult, min int
 		)
 	}
 
-	title := fmt.Sprintf("%s <=> %s (%.02fkm/%.02fmi)", a, b, results[0].Km, results[0].Mi)
+	w, _ := getHotspot(witness)
+	s := *w.Status
+	status := fmt.Sprintf(" %s", s.Online)
+	title := fmt.Sprintf("%s <=> %s (%.02fkm/%.02fmi) [%.02f]%s", a, b, results[0].Km, results[0].Mi, w.RewardScale, status)
 	graph := chart.Chart{
 		Title: title,
 		Background: chart.Style{
@@ -388,29 +403,8 @@ func generatePeerGraph(address, witness string, results []WitnessResult, min int
 	return nil, true
 }
 
-func getListOfAddresses(challenges []Challenges) ([]string, error) {
-	addrs := map[string]int{}
-	for _, chal := range challenges {
-		p := *chal.Path
-		for _, witness := range *p[0].Witnesses {
-			_, ok := addrs[witness.Gateway]
-			if !ok {
-				addrs[witness.Gateway] = 1
-			} else {
-				addrs[witness.Gateway] += 1
-			}
-
-		}
-	}
-	ret := []string{}
-	for k, _ := range addrs {
-		ret = append(ret, k)
-	}
-	return ret, nil
-}
-
 func generatePeerGraphs(address string, challenges []Challenges, min int, zoom, generateJson bool) {
-	addresses, err := getListOfAddresses(challenges)
+	addresses, err := GetListOfAddresses(challenges)
 	if err != nil {
 		log.WithError(err).Fatalf("Unable to get addresses")
 	}
@@ -454,20 +448,4 @@ func generatePeerGraphs(address string, challenges []Challenges, min int, zoom, 
 			cnt += 1
 		}
 	}
-}
-
-func XValueFormatter(v interface{}) string {
-	if fv, isFloat := v.(float64); isFloat {
-		t := time.Unix(int64(fv/1000000000), 0)
-		hr, _ := strconv.Atoi(t.Format("15"))
-		htime := "am"
-		if hr > 11 {
-			htime = "pm"
-			if hr > 12 {
-				hr -= 12
-			}
-		}
-		return fmt.Sprintf("%s %d%s", t.Format("2006-01-02"), hr, htime)
-	}
-	return ""
 }
