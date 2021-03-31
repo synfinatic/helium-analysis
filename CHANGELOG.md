@@ -1,5 +1,13 @@
 # Helium Analysis Changelog
 
+## v0.7.1 - 2021-03-30
+
+- Disable --zoom flag as it is broken
+- Improve labels to include count of datapoints
+- Switch to alternate colors instead of labels for invalid PoC
+- Fix bug where only TX data was graphed
+- Reduce size of data points from 5px to 3px
+
 ## v0.7.0 - 2021-03-30
 
 - Remove --hotspots flag
