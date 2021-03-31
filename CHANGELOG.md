@@ -5,6 +5,8 @@
 - Add online status & reward scale of remote node
 - Connect avg lines when there is invalid PoC
 - Code cleanup
+- Use hotspot name as challenges cache file instead of just challenges.json
+- Update Readme
 
 ## v0.7.1 - 2021-03-30
 
