@@ -33,7 +33,6 @@ var Buildinfos = "unknown"
 var Tag = "NO-TAG"
 var CommitID = "unknown"
 
-const CHALLENGES_CACHE_FILE = "challenges.json"
 const CHALLENGES_CACHE_EXPIRES = 1 // 1 hr
 
 func main() {
@@ -50,7 +49,7 @@ func main() {
 	flag.IntVar(&days, "days", 30, "Set starting point in days")
 	flag.IntVar(&min, "min", 5, "Minimum challenges required to graph")
 	//	flag.BoolVar(&zoom, "zoom", false, "Unfix X/Y axis to zoom in")
-	flag.StringVar(&challengeCache, "cache", CHALLENGES_CACHE_FILE, "Challenges cache file")
+	flag.StringVar(&challengeCache, "cache", "", "Challenges cache file")
 	flag.Int64Var(&challengesExpires, "expires", CHALLENGES_CACHE_EXPIRES, "Challenge cache timeout (hrs)")
 	flag.BoolVar(&noCache, "no-cache", false, "Disable loading/reading challenges cache")
 	flag.BoolVar(&forceCache, "force-cache", false, "Force using existing cache and skip API calls")
@@ -100,14 +99,25 @@ func main() {
 		}
 	}
 
+	if name == "" && address == "" {
+		log.Fatalf("Please specify --address or --name")
+	}
+
 	if name != "" {
 		address, err = getHotspotAddress(name)
 		if err != nil {
 			log.Fatalf("%s", err)
 		}
+	} else {
+		name, err = getHotspotName(address)
+		if err != nil {
+			log.Fatalf("%s", err)
+		}
 	}
-	if address == "" {
-		log.Fatalf("Please specify --address or --name")
+
+	// set cache file if not set
+	if challengeCache == "" {
+		challengeCache = fmt.Sprintf("%s.json", name)
 	}
 
 	// Calcuate the beginning of the day, X days back
@@ -123,7 +133,7 @@ func main() {
 			log.Fatalf("%s", err)
 		}
 	} else {
-		c, err = loadChallenges(CHALLENGES_CACHE_FILE, address, challengesExpires*3600, start, forceCache)
+		c, err = loadChallenges(challengeCache, address, challengesExpires*3600, start, forceCache)
 		if err != nil {
 			log.WithError(err).Warnf("Unable to load challenges file. Refreshing...")
 			c, err = fetchChallenges(address, start)
@@ -132,7 +142,7 @@ func main() {
 			}
 		}
 		if !noCache {
-			writeChallenges(c, CHALLENGES_CACHE_FILE, address, start)
+			writeChallenges(c, challengeCache, address, start)
 		}
 	}
 

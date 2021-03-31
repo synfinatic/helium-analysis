@@ -55,12 +55,13 @@ Note that there is no GUI/WebUI at this time.
 
  * `--address X` - Specify the hotspot address to analyze
  * `--name X` - Specify the hotspot name to analyze
- * `--zoom` - Unfix the X & Y axis and zoom in on each individual graph
  * `--min X` - Set the minimum of data points required to generate a graph  (deafult 5)
  * `--days X` - Set the number of days to process (default 30)
- * `--hotspots` - Refresh hotspots cache
  * `--no-cache` - Disable caching of challenges
- * `--expires X` - Refresh challenges if more than X hours old
+ * `--force-cache` - Force using of local cache to avoid hitting api.helium.io
+ * `--cache X` - Use alternate name for hotspot cache file (default is _the-hotspot-name_.json)
+ * `--expires X` - Refresh challenges if more than X hours old (default 1hr)
+ * `--json` - Dump JSON files for each hotspot
  * `--version` - Print out the version information
 
 ## Donate
