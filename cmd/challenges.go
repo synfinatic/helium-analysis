@@ -28,7 +28,6 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/go-resty/resty/v2"
 	log "github.com/sirupsen/logrus"
-	"github.com/umahmood/haversine"
 )
 
 type ChallengeResponse struct {
@@ -418,83 +417,6 @@ func loadChallenges(filename, address string, expires int64, start time.Time, fo
 	}
 
 	return challenges, nil
-}
-
-// returns the max RSSI based on distance
-// Stolen from: https://github.com/Carniverous19/helium_analysis_tools.git
-func maxRssi(km float64) float64 {
-	if km < 0.001 {
-		return -1000.0
-	}
-	return 28.0 + 1.8*2 - (20.0 * math.Log10(km)) - (20.0 * math.Log10(915.0)) - 32.44
-}
-
-// Not sure why it is a list of values at the end???
-// Table is map[SNR] = minimum valid RSSI
-// Stolen from: https://github.com/Carniverous19/helium_analysis_tools.git
-var SnrTable = map[int]int{
-	16:  -90,
-	14:  -90,
-	13:  -90,
-	15:  -90,
-	12:  -90,
-	11:  -90,
-	10:  -90,
-	9:   -95,
-	8:   -105,
-	7:   -108,
-	6:   -113,
-	5:   -115,
-	4:   -115,
-	3:   -115,
-	2:   -117,
-	1:   -120,
-	0:   -125,
-	-1:  -125,
-	-2:  -125,
-	-3:  -125,
-	-4:  -125,
-	-5:  -125,
-	-6:  -124,
-	-7:  -123,
-	-8:  -125,
-	-9:  -125,
-	-10: -125,
-	-11: -125,
-	-12: -125,
-	-13: -125,
-	-14: -125,
-	-15: -124,
-	-16: -123,
-	-17: -123,
-	-18: -123,
-	-19: -123,
-	-20: -123,
-}
-
-// returns the minimum valid RSSI at a given SNR
-func minRssiPerSnr(snr float64) float64 {
-	snri := int(math.Ceil(snr))
-	v, ok := SnrTable[snri]
-	if !ok {
-		return 1000.0
-	}
-	return float64(v)
-}
-
-// Get the haversine distance between two node addresses
-func getDistance(aHost, bHost Hotspot) (float64, float64, error) {
-	mi, km := haversine.Distance(
-		haversine.Coord{
-			Lat: aHost.Lat,
-			Lon: aHost.Lng,
-		},
-		haversine.Coord{
-			Lat: bHost.Lat,
-			Lon: bHost.Lng,
-		},
-	)
-	return km, mi, nil
 }
 
 // returns the highest nanosec block time less than or equal to the given height

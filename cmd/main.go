@@ -147,6 +147,12 @@ func main() {
 	}
 
 	generatePeerGraphs(address, c, min, zoom, generateJson)
-	generateBeaconsGraph(address, c)
-	generateWitnessesGraph(address, c)
+	err = generateBeaconsGraph(address, c)
+	if err != nil {
+		log.WithError(err).Errorf("Unable to generate beacons graph")
+	}
+	err = generateWitnessesGraph(address, c)
+	if err != nil {
+		log.WithError(err).Errorf("Unable to generate witnesses graph")
+	}
 }
