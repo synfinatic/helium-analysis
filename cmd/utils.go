@@ -68,6 +68,22 @@ func XValueFormatter(v interface{}) string {
 	return ""
 }
 
+func XValueFormatterUnix(v interface{}) string {
+	if fv, isFloat := v.(float64); isFloat {
+		t := time.Unix(int64(fv), 0)
+		hr, _ := strconv.Atoi(t.Format("15"))
+		htime := "am"
+		if hr > 11 {
+			htime = "pm"
+			if hr > 12 {
+				hr -= 12
+			}
+		}
+		return fmt.Sprintf("%s %d%s", t.Format("2006-01-02"), hr, htime)
+	}
+	return ""
+}
+
 // get a unique list of addresses in all the challenges
 func GetListOfAddresses(challenges []Challenges) ([]string, error) {
 	addrs := map[string]int{}

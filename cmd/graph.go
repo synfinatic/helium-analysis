@@ -46,52 +46,108 @@ const (
 	SNR_MAX  = 16.0
 )
 
-// Creates the PNG for the given args
-func generateGraph(address string, direction RXTX, results []ChallengeResult, filename string) {
-	series := []chart.Series{}
-	var label string
-
-	addresses, err := getAddresses(results)
+// Creates the PNG for the the beacons sent
+func generateBeaconsGraph(address string, results []Challenges) error {
+	hotspotName, err := getHotspotName(address)
 	if err != nil {
-		log.WithError(err).Fatalf("Unable to get addresses")
+		return err
 	}
-	for _, addr := range addresses {
-		if direction == RX {
-			label = "RX"
-		} else {
-			label = "TX"
-		}
+	filename := fmt.Sprintf("%s:beacons.png", hotspotName)
 
-		x, y := getSignalsSeriesChallenge(addr, results)
-		h, err := getHotspot(addr)
-		name := addr
-		if err != nil {
-			log.WithError(err).Warnf("Unable to get Hotspot info")
-		} else {
-			name = h.Name
+	x_data := []float64{}
+	valid_data := []float64{}
+	invalid_data := []float64{}
+	for _, challenge := range results {
+		path := *challenge.Path
+		if path[0].Challengee != address {
+			continue
 		}
-
-		series = append(series, chart.ContinuousSeries{
-			Name:    fmt.Sprintf("%s %s", name, label),
-			XValues: x,
-			YValues: y,
-		})
+		valid := 0
+		invalid := 0
+		for _, witness := range *path[0].Witnesses {
+			if witness.Gateway == address {
+				continue
+			}
+			if witness.IsValid {
+				valid += 1
+			} else {
+				invalid += 1
+			}
+		}
+		valid_data = append(valid_data, float64(valid))
+		invalid_data = append(invalid_data, float64(invalid))
+		x_data = append(x_data, float64(challenge.Time))
 	}
 
-	graph := chart.Chart{
-		Background: chart.Style{
-			Padding: chart.Box{
-				Top:  20,
-				Left: 260,
-			},
+	validSeries := chart.ContinuousSeries{
+		Name: "Valid",
+		Style: chart.Style{
+			StrokeColor: chart.ColorGreen,
 		},
+		XValues: x_data,
+		YValues: valid_data,
+	}
+
+	validSma := chart.SMASeries{
+		Style: chart.Style{
+			StrokeWidth:     1,
+			DotWidth:        chart.Disabled,
+			StrokeColor:     chart.ColorGreen,
+			StrokeDashArray: []float64{5.0, 5.0},
+		},
+		InnerSeries: validSeries,
+	}
+
+	invalidSeries := chart.ContinuousSeries{
+		Name: "Invalid",
+		Style: chart.Style{
+			StrokeColor: chart.ColorRed,
+		},
+		XValues: x_data,
+		YValues: invalid_data,
+	}
+
+	invalidSma := chart.SMASeries{
+		Style: chart.Style{
+			StrokeWidth:     1,
+			DotWidth:        chart.Disabled,
+			StrokeColor:     chart.ColorRed,
+			StrokeDashArray: []float64{5.0, 5.0},
+		},
+		InnerSeries: invalidSeries,
+	}
+
+	series := []chart.Series{
+		validSeries,
+		validSma,
+		invalidSeries,
+		invalidSma,
+	}
+	x_range := chart.ContinuousRange{
+		Max: x_data[0],
+		Min: x_data[len(x_data)-1],
+	}
+	graph := chart.Chart{
+		Title:  fmt.Sprintf("Beacons for %s", hotspotName),
 		Height: HEIGHT,
 		Width:  WIDTH,
 		Series: series,
+		Background: chart.Style{
+			Padding: chart.Box{
+				Top:    110,
+				Left:   20,
+				Right:  20,
+				Bottom: 10,
+			},
+		},
+		XAxis: chart.XAxis{
+			ValueFormatter: XValueFormatterUnix,
+			Range:          &x_range,
+		},
 	}
 
 	graph.Elements = []chart.Renderable{
-		chart.LegendLeft(&graph),
+		chart.LegendThin(&graph),
 	}
 	f, err := os.Create(filename)
 	if err != nil {
@@ -100,6 +156,118 @@ func generateGraph(address string, direction RXTX, results []ChallengeResult, fi
 	defer f.Close()
 	graph.Render(chart.PNG, f)
 	log.Infof("Created %s", filename)
+	return nil
+}
+
+// Creates the PNG for the the witnesses
+func generateWitnessesGraph(address string, results []Challenges) error {
+	hotspotName, err := getHotspotName(address)
+	if err != nil {
+		return err
+	}
+	filename := fmt.Sprintf("%s:witnesses.png", hotspotName)
+
+	x_data := []float64{}
+	valid_data := []float64{}
+	invalid_data := []float64{}
+	for _, challenge := range results {
+		path := *challenge.Path
+		if path[0].Challengee == address {
+			continue
+		}
+		valid := 0
+		invalid := 0
+		for _, witness := range *path[0].Witnesses {
+			if witness.Gateway == address {
+				continue
+			}
+			if witness.IsValid {
+				valid += 1
+			} else {
+				invalid += 1
+			}
+		}
+		valid_data = append(valid_data, float64(valid))
+		invalid_data = append(invalid_data, float64(invalid))
+		x_data = append(x_data, float64(challenge.Time))
+	}
+
+	validSeries := chart.ContinuousSeries{
+		Name: "Valid",
+		Style: chart.Style{
+			StrokeWidth: chart.Disabled,
+			DotWidth:    chart.Disabled,
+		},
+		XValues: x_data,
+		YValues: valid_data,
+	}
+
+	validSma := chart.SMASeries{
+		Style: chart.Style{
+			StrokeColor: chart.ColorGreen,
+		},
+		InnerSeries: validSeries,
+	}
+
+	invalidSeries := chart.ContinuousSeries{
+		Style: chart.Style{
+			StrokeWidth: chart.Disabled,
+			DotWidth:    chart.Disabled,
+		},
+		XValues: x_data,
+		YValues: invalid_data,
+	}
+
+	invalidSma := chart.SMASeries{
+		Name:        "Invalid",
+		InnerSeries: invalidSeries,
+		Style: chart.Style{
+			StrokeWidth: 1,
+			DotWidth:    chart.Disabled,
+			StrokeColor: chart.ColorRed,
+		},
+	}
+
+	series := []chart.Series{
+		validSeries,
+		validSma,
+		invalidSeries,
+		invalidSma,
+	}
+	x_range := chart.ContinuousRange{
+		Max: x_data[0],
+		Min: x_data[len(x_data)-1],
+	}
+	graph := chart.Chart{
+		Title:  fmt.Sprintf("Witnesses Avg for %s", hotspotName),
+		Height: HEIGHT,
+		Width:  WIDTH,
+		Series: series,
+		Background: chart.Style{
+			Padding: chart.Box{
+				Top:    110,
+				Left:   20,
+				Right:  20,
+				Bottom: 10,
+			},
+		},
+		XAxis: chart.XAxis{
+			ValueFormatter: XValueFormatterUnix,
+			Range:          &x_range,
+		},
+	}
+
+	graph.Elements = []chart.Renderable{
+		chart.LegendThin(&graph),
+	}
+	f, err := os.Create(filename)
+	if err != nil {
+		log.WithError(err).Fatalf("Unable to crate %s", filename)
+	}
+	defer f.Close()
+	graph.Render(chart.PNG, f)
+	log.Infof("Created %s", filename)
+	return nil
 }
 
 func generatePeerGraph(address, witness string, results []WitnessResult, min int, x_min, x_max float64, join_time int64, generateJson bool) (error, bool) {
