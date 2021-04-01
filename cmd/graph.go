@@ -52,14 +52,14 @@ func generateBeaconsGraph(address string, results []Challenges) error {
 	if err != nil {
 		return err
 	}
-	filename := fmt.Sprintf("%s:beacons.png", hotspotName)
+	filename := fmt.Sprintf("%s:beacon-totals.png", hotspotName)
 
 	x_data := []float64{}
 	valid_data := []float64{}
 	invalid_data := []float64{}
 	for _, challenge := range results {
 		path := *challenge.Path
-		if path[0].Challengee != address {
+		if path[0].Challengee != address { // find only our beacons
 			continue
 		}
 		valid := 0
@@ -73,6 +73,9 @@ func generateBeaconsGraph(address string, results []Challenges) error {
 			} else {
 				invalid += 1
 			}
+		}
+		if valid == 0 && invalid == 0 {
+			continue
 		}
 		valid_data = append(valid_data, float64(valid))
 		invalid_data = append(invalid_data, float64(invalid))
@@ -128,7 +131,7 @@ func generateBeaconsGraph(address string, results []Challenges) error {
 		Min: x_data[len(x_data)-1],
 	}
 	graph := chart.Chart{
-		Title:  fmt.Sprintf("Beacons for %s", hotspotName),
+		Title:  fmt.Sprintf("Beacon Totals for %s", hotspotName),
 		Height: HEIGHT,
 		Width:  WIDTH,
 		Series: series,
@@ -165,81 +168,72 @@ func generateWitnessesGraph(address string, results []Challenges) error {
 	if err != nil {
 		return err
 	}
-	filename := fmt.Sprintf("%s:witnesses.png", hotspotName)
+	filename := fmt.Sprintf("%s:witness-distance.png", hotspotName)
+	host, err := getHotspot(address)
+	if err != nil {
+		return err
+	}
 
-	x_data := []float64{}
+	x_valid := []float64{}
+	x_invalid := []float64{}
 	valid_data := []float64{}
 	invalid_data := []float64{}
 	for _, challenge := range results {
 		path := *challenge.Path
 		if path[0].Challengee == address {
-			continue
+			continue // ignore where we are the one sending the beacon
 		}
-		valid := 0
-		invalid := 0
 		for _, witness := range *path[0].Witnesses {
 			if witness.Gateway == address {
-				continue
-			}
-			if witness.IsValid {
-				valid += 1
-			} else {
-				invalid += 1
+				otherHost, err := getHotspot(path[0].Challengee)
+				if err != nil {
+					log.Errorf("Unable to find %s", path[0].Challengee)
+					continue
+				}
+				km, _, _ := getDistance(host, otherHost)
+				if witness.IsValid {
+					valid_data = append(valid_data, float64(km))
+					x_valid = append(x_valid, float64(challenge.Time))
+					break
+				} else {
+					invalid_data = append(invalid_data, float64(km))
+					x_invalid = append(x_invalid, float64(challenge.Time))
+					break
+				}
 			}
 		}
-		valid_data = append(valid_data, float64(valid))
-		invalid_data = append(invalid_data, float64(invalid))
-		x_data = append(x_data, float64(challenge.Time))
 	}
 
 	validSeries := chart.ContinuousSeries{
 		Name: "Valid",
 		Style: chart.Style{
 			StrokeWidth: chart.Disabled,
-			DotWidth:    chart.Disabled,
+			DotWidth:    2,
+			StrokeColor: chart.ColorGreen,
+			DotColor:    chart.ColorGreen,
 		},
-		XValues: x_data,
+		XValues: x_valid,
 		YValues: valid_data,
 	}
 
-	validSma := chart.SMASeries{
-		Style: chart.Style{
-			StrokeColor: chart.ColorGreen,
-		},
-		InnerSeries: validSeries,
-	}
-
 	invalidSeries := chart.ContinuousSeries{
+		Name: "Invalid",
 		Style: chart.Style{
 			StrokeWidth: chart.Disabled,
-			DotWidth:    chart.Disabled,
-		},
-		XValues: x_data,
-		YValues: invalid_data,
-	}
-
-	invalidSma := chart.SMASeries{
-		Name:        "Invalid",
-		InnerSeries: invalidSeries,
-		Style: chart.Style{
-			StrokeWidth: 1,
-			DotWidth:    chart.Disabled,
+			DotWidth:    2,
+			DotColor:    chart.ColorRed,
 			StrokeColor: chart.ColorRed,
 		},
+		XValues: x_invalid,
+		YValues: invalid_data,
 	}
 
 	series := []chart.Series{
 		validSeries,
-		validSma,
 		invalidSeries,
-		invalidSma,
-	}
-	x_range := chart.ContinuousRange{
-		Max: x_data[0],
-		Min: x_data[len(x_data)-1],
 	}
 	graph := chart.Chart{
-		Title:  fmt.Sprintf("Witnesses Avg for %s", hotspotName),
+		Title:  fmt.Sprintf("Witness Result for %s", hotspotName),
 		Height: HEIGHT,
 		Width:  WIDTH,
 		Series: series,
@@ -253,7 +247,9 @@ func generateWitnessesGraph(address string, results []Challenges) error {
 		},
 		XAxis: chart.XAxis{
 			ValueFormatter: XValueFormatterUnix,
-			Range:          &x_range,
+		},
+		YAxis: chart.YAxis{
+			Name: "km",
 		},
 	}
 

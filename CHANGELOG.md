@@ -7,7 +7,7 @@
 - Code cleanup
 - Use hotspot name as challenges cache file instead of just challenges.json
 - Update Readme
-- Add beacons & witnesses graphs
+- Add new beacons & witnesses graphs
 
 ## v0.7.1 - 2021-03-30
 
