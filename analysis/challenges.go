@@ -1,4 +1,4 @@
-package main
+package analysis
 
 /*
  * Helium Analysis
@@ -158,7 +158,7 @@ func getChallengeResponse(client *resty.Client, address string, cursor string) (
 }
 
 // Download all the challenges from the API
-func fetchChallenges(address string, start time.Time) ([]Challenges, error) {
+func FetchChallenges(address string, start time.Time) ([]Challenges, error) {
 	challenges := []Challenges{}
 	totalChallenges := 0
 	cursor := "" // keep track
@@ -258,7 +258,7 @@ func getRxResults(address string, challenges []Challenges) ([]ChallengeResult, e
 
 func getWitnessResults(address, witness string, challenges []Challenges) ([]WitnessResult, error) {
 	results := []WitnessResult{}
-	aHost, err := getHotspot(address)
+	aHost, err := GetHotspot(address)
 	if err != nil {
 		return []WitnessResult{}, err
 	}
@@ -284,7 +284,7 @@ func getWitnessResults(address, witness string, challenges []Challenges) ([]Witn
 					continue
 				}
 
-				wHost, err := getHotspot(witness)
+				wHost, err := GetHotspot(witness)
 				if err != nil {
 					log.WithError(err).Errorf("Unable to lookup: %s", witness)
 					continue
@@ -367,7 +367,7 @@ func printChallenges(challenges []Challenges) {
 }
 
 // write the cache file
-func writeChallenges(challenges []Challenges, filename, address string, start time.Time) error {
+func WriteChallenges(challenges []Challenges, filename, address string, start time.Time) error {
 	cache := ChallengeCache{
 		CacheTime:  time.Now().Unix(),
 		Address:    address,
@@ -382,7 +382,7 @@ func writeChallenges(challenges []Challenges, filename, address string, start ti
 }
 
 // read the cache file
-func loadChallenges(filename, address string, expires int64, start time.Time, forceCache bool) ([]Challenges, error) {
+func LoadChallenges(filename, address string, expires int64, start time.Time, forceCache bool) ([]Challenges, error) {
 	cache := ChallengeCache{}
 	bytes, err := ioutil.ReadFile(filename)
 	if err != nil {

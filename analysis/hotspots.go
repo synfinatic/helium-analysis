@@ -1,4 +1,4 @@
-package main
+package analysis
 
 /*
  * Helium Analysis
@@ -73,7 +73,7 @@ var HOTSPOT_CACHE map[string]Hotspot = map[string]Hotspot{}
 
 // Looks up a hotspot by address in the cache.  If not,
 // it queries the API
-func getHotspot(address string) (Hotspot, error) {
+func GetHotspot(address string) (Hotspot, error) {
 	v, ok := HOTSPOT_CACHE[address]
 	if ok {
 		return v, nil
@@ -96,15 +96,15 @@ func getHotspot(address string) (Hotspot, error) {
 	return result.Data, nil
 }
 
-func getHotspotName(address string) (string, error) {
-	h, err := getHotspot(address)
+func GetHotspotName(address string) (string, error) {
+	h, err := GetHotspot(address)
 	if err != nil {
 		return "", err
 	}
 	return h.Name, nil
 }
 
-func getHotspotAddress(name string) (string, error) {
+func GetHotspotAddress(name string) (string, error) {
 	for address, hotspot := range HOTSPOT_CACHE {
 		if hotspot.Name == name {
 			return address, nil
@@ -114,7 +114,7 @@ func getHotspotAddress(name string) (string, error) {
 }
 
 // Loads our hotspots from the cachefile returns true if should be refreshed
-func loadHotspots(filename string) (error, bool) {
+func LoadHotspots(filename string) (error, bool) {
 	file, err := ioutil.ReadFile(filename)
 	if err != nil {
 		return err, false
@@ -141,7 +141,7 @@ func loadHotspots(filename string) (error, bool) {
 }
 
 // Download hotspot data from helium.api servers and saves to filename
-func downloadHotspots(filename string) error {
+func DownloadHotspots(filename string) error {
 	hotspots := []Hotspot{}
 	cursor := "" // keep track
 	client := resty.New()

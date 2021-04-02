@@ -1,4 +1,4 @@
-package main
+package analysis
 
 /*
  * Helium Analysis
@@ -47,8 +47,8 @@ const (
 )
 
 // Creates the PNG for the the beacons sent
-func generateBeaconsGraph(address string, results []Challenges) error {
-	hotspotName, err := getHotspotName(address)
+func GenerateBeaconsGraph(address string, results []Challenges) error {
+	hotspotName, err := GetHotspotName(address)
 	if err != nil {
 		return err
 	}
@@ -163,13 +163,13 @@ func generateBeaconsGraph(address string, results []Challenges) error {
 }
 
 // Creates the PNG for the the witnesses
-func generateWitnessesGraph(address string, results []Challenges) error {
-	hotspotName, err := getHotspotName(address)
+func GenerateWitnessesGraph(address string, results []Challenges) error {
+	hotspotName, err := GetHotspotName(address)
 	if err != nil {
 		return err
 	}
 	filename := fmt.Sprintf("%s:witness-distance.png", hotspotName)
-	host, err := getHotspot(address)
+	host, err := GetHotspot(address)
 	if err != nil {
 		return err
 	}
@@ -185,7 +185,7 @@ func generateWitnessesGraph(address string, results []Challenges) error {
 		}
 		for _, witness := range *path[0].Witnesses {
 			if witness.Gateway == address {
-				otherHost, err := getHotspot(path[0].Challengee)
+				otherHost, err := GetHotspot(path[0].Challengee)
 				if err != nil {
 					log.Errorf("Unable to find %s", path[0].Challengee)
 					continue
@@ -267,11 +267,11 @@ func generateWitnessesGraph(address string, results []Challenges) error {
 }
 
 func generatePeerGraph(address, witness string, results []WitnessResult, min int, x_min, x_max float64, join_time int64, generateJson bool) (error, bool) {
-	a, err := getHotspotName(address)
+	a, err := GetHotspotName(address)
 	if err != nil {
 		return err, false
 	}
-	b, err := getHotspotName(witness)
+	b, err := GetHotspotName(witness)
 	if err != nil {
 		return err, false
 	}
@@ -293,7 +293,7 @@ func generatePeerGraph(address, witness string, results []WitnessResult, min int
 
 	forceYRange := 1000.0
 	forceSNRRange := 1000.0
-	witnessName, err := getHotspotName(witness)
+	witnessName, err := GetHotspotName(witness)
 	if err != nil {
 		witnessName = witness
 	}
@@ -515,7 +515,7 @@ func generatePeerGraph(address, witness string, results []WitnessResult, min int
 		)
 	}
 
-	w, _ := getHotspot(witness)
+	w, _ := GetHotspot(witness)
 	s := *w.Status
 	status := fmt.Sprintf(" %s", s.Online)
 	title := fmt.Sprintf("%s <=> %s (%.02fkm/%.02fmi) [%.02f]%s", a, b, results[0].Km, results[0].Mi, w.RewardScale, status)
@@ -567,7 +567,7 @@ func generatePeerGraph(address, witness string, results []WitnessResult, min int
 	return nil, true
 }
 
-func generatePeerGraphs(address string, challenges []Challenges, min int, zoom, generateJson bool) {
+func GeneratePeerGraphs(address string, challenges []Challenges, min int, zoom, generateJson bool) {
 	addresses, err := GetListOfAddresses(challenges)
 	if err != nil {
 		log.WithError(err).Fatalf("Unable to get addresses")
@@ -599,7 +599,7 @@ func generatePeerGraphs(address string, challenges []Challenges, min int, zoom, 
 		}
 
 		var join_time int64 = 0
-		host, err := getHotspot(peer)
+		host, err := GetHotspot(peer)
 		if err == nil {
 			join_time, err = getTimeForHeight(host.BlockAdded, challenges)
 		}

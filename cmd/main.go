@@ -26,6 +26,7 @@ import (
 	"github.com/mattn/go-colorable"
 	log "github.com/sirupsen/logrus"
 	flag "github.com/spf13/pflag"
+	"github.com/synfinatic/helium-analysis/analysis"
 )
 
 var Version = "unknown"
@@ -33,7 +34,10 @@ var Buildinfos = "unknown"
 var Tag = "NO-TAG"
 var CommitID = "unknown"
 
-const CHALLENGES_CACHE_EXPIRES = 1 // 1 hr
+const (
+	CHALLENGES_CACHE_EXPIRES = 1 // 1 hr
+	HOTSPOT_CACHE_FILE       = "hotspots.json"
+)
 
 func main() {
 	var debug, version, zoom, noCache, forceCache, generateJson bool
@@ -79,7 +83,7 @@ func main() {
 	}
 
 	refreshHotspots := false
-	err, tooOld := loadHotspots(HOTSPOT_CACHE_FILE)
+	err, tooOld := analysis.LoadHotspots(HOTSPOT_CACHE_FILE)
 	if err != nil {
 		log.WithError(err).Warn("Unable to load hotspot cache.  Refreshing...")
 		refreshHotspots = true
@@ -89,11 +93,11 @@ func main() {
 	}
 
 	if refreshHotspots {
-		err = downloadHotspots(HOTSPOT_CACHE_FILE)
+		err = analysis.DownloadHotspots(HOTSPOT_CACHE_FILE)
 		if err != nil {
 			log.WithError(err).Fatalf("Unable to load hotspots.")
 		}
-		err, _ = loadHotspots(HOTSPOT_CACHE_FILE)
+		err, _ = analysis.LoadHotspots(HOTSPOT_CACHE_FILE)
 		if err != nil {
 			log.WithError(err).Fatalf("Unable to load new hotspot cache")
 		}
@@ -104,12 +108,12 @@ func main() {
 	}
 
 	if name != "" {
-		address, err = getHotspotAddress(name)
+		address, err = analysis.GetHotspotAddress(name)
 		if err != nil {
 			log.Fatalf("%s", err)
 		}
 	} else {
-		name, err = getHotspotName(address)
+		name, err = analysis.GetHotspotName(address)
 		if err != nil {
 			log.Fatalf("%s", err)
 		}
@@ -126,32 +130,32 @@ func main() {
 	startDate := startTime.Format("2006-01-02")
 	start, _ := time.Parse("2006-01-02", startDate)
 
-	c := []Challenges{}
+	c := []analysis.Challenges{}
 	if noCache {
-		c, err = fetchChallenges(address, start)
+		c, err = analysis.FetchChallenges(address, start)
 		if err != nil {
 			log.Fatalf("%s", err)
 		}
 	} else {
-		c, err = loadChallenges(challengeCache, address, challengesExpires*3600, start, forceCache)
+		c, err = analysis.LoadChallenges(challengeCache, address, challengesExpires*3600, start, forceCache)
 		if err != nil {
 			log.WithError(err).Warnf("Unable to load challenges file. Refreshing...")
-			c, err = fetchChallenges(address, start)
+			c, err = analysis.FetchChallenges(address, start)
 			if err != nil {
 				log.Fatalf("%s", err)
 			}
 		}
 		if !noCache {
-			writeChallenges(c, challengeCache, address, start)
+			analysis.WriteChallenges(c, challengeCache, address, start)
 		}
 	}
 
-	generatePeerGraphs(address, c, min, zoom, generateJson)
-	err = generateBeaconsGraph(address, c)
+	analysis.GeneratePeerGraphs(address, c, min, zoom, generateJson)
+	err = analysis.GenerateBeaconsGraph(address, c)
 	if err != nil {
 		log.WithError(err).Errorf("Unable to generate beacons graph")
 	}
-	err = generateWitnessesGraph(address, c)
+	err = analysis.GenerateWitnessesGraph(address, c)
 	if err != nil {
 		log.WithError(err).Errorf("Unable to generate witnesses graph")
 	}
