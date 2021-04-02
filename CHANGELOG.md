@@ -1,10 +1,10 @@
 # Helium Analysis Changelog
 
-## Unreleased
+## v0.8.0 - 2021-04-01
 
 - Add online status & reward scale of remote node
 - Connect avg lines when there is invalid PoC
-- Code cleanup
+- Code cleanup & refactor
 - Use hotspot name as challenges cache file instead of just challenges.json
 - Update Readme
 - Add new beacons & witnesses graphs
