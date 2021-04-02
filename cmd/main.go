@@ -37,6 +37,7 @@ var CommitID = "unknown"
 const (
 	CHALLENGES_CACHE_EXPIRES = 1 // 1 hr
 	HOTSPOT_CACHE_FILE       = "hotspots.json"
+	DATABASE_FILE            = "helium.db"
 )
 
 func main() {
@@ -82,6 +83,12 @@ func main() {
 		log.Fatalf("Please specify a --min value >= 2")
 	}
 
+	db, err := analysis.OpenDB(DATABASE_FILE)
+	if err != nil {
+		log.WithError(err).Fatalf("Unable to open database")
+	}
+	defer db.Close()
+
 	refreshHotspots := false
 	err, tooOld := analysis.LoadHotspots(HOTSPOT_CACHE_FILE)
 	if err != nil {
@@ -93,7 +100,7 @@ func main() {
 	}
 
 	if refreshHotspots {
-		err = analysis.DownloadHotspots(HOTSPOT_CACHE_FILE)
+		err = analysis.FetchHotspots(HOTSPOT_CACHE_FILE)
 		if err != nil {
 			log.WithError(err).Fatalf("Unable to load hotspots.")
 		}
