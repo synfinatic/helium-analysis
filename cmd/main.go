@@ -20,12 +20,10 @@ package main
 
 import (
 	"fmt"
-	//	"time"
 
 	"github.com/alecthomas/kong"
 	"github.com/mattn/go-colorable"
 	log "github.com/sirupsen/logrus"
-	//	"github.com/synfinatic/helium-analysis/analysis"
 )
 
 var Version = "unknown"
@@ -46,15 +44,12 @@ type RunContext struct {
 
 type CLI struct {
 	// Common Arguments
-	LogLevel string `kong:"optional,short='l',name='loglevel',default='info',enum='error,warn,info,debug',help='Logging level [error|warn|info|debug]'"`
-	Database string `kong:"optional,name='database',default='helium.db',help='Database file'"`
-	// Commands
-	//      Role RoleCmd `kong:"cmd,help='Fetch & cache AWS STS Token for a given Role/Profile'"`
-	//      App   AppCmd   `kong:"cmd,help='Fetch & cache all AWS STS Tokens for a given OneLogin AppID'"`
-	//	Hotspots HotspotsCmd `kong:"cmd,help='Refresh list of hotspots'"`
-	Graph GraphCmd `kong:"cmd,help='Generate graphs for the given hotspot'"`
-	//	Export   ExportCmd   `kong:"cmd,help='Export portion of database as JSON'"`
-	Version VersionCmd `kong:"cmd,help='Print version and exit'"`
+	LogLevel   string        `kong:"optional,short='l',name='loglevel',default='info',enum='error,warn,info,debug',help='Logging level [error|warn|info|debug]'"`
+	Database   string        `kong:"optional,name='database',default='helium.db',help='Database file'"`
+	Graph      GraphCmd      `kong:"cmd,help='Generate graphs for the given hotspot'"`
+	Hotspots   HotspotsCmd   `kong:"cmd,help='Manage hotspots in database'"`
+	Challenges ChallengesCmd `kong:"cmd,help='Manage challenges in database'"`
+	Version    VersionCmd    `kong:"cmd,help='Print version and exit'"`
 }
 
 func main() {
@@ -86,128 +81,6 @@ func main() {
 		log.Fatalf("Error running command: %s", err.Error())
 	}
 }
-
-/*
-func oldMain() {
-	var debug, version, zoom, noCache, forceCache, generateJson bool
-	var address, challengeCache, name string
-	var min, days int
-	var challengesExpires int64
-	var err error
-
-	flag.BoolVar(&debug, "debug", false, "Enable debugging")
-	flag.BoolVar(&version, "version", false, "Print version and exit")
-	flag.StringVar(&address, "address", "", "Hotspot address to report on")
-	flag.StringVar(&name, "name", "", "Hotspot name to report on")
-	flag.IntVar(&days, "days", 30, "Set starting point in days")
-	flag.IntVar(&min, "min", 5, "Minimum challenges required to graph")
-	//	flag.BoolVar(&zoom, "zoom", false, "Unfix X/Y axis to zoom in")
-	flag.StringVar(&challengeCache, "cache", "", "Challenges cache file")
-	flag.Int64Var(&challengesExpires, "expires", CHALLENGES_CACHE_EXPIRES, "Challenge cache timeout (hrs)")
-	flag.BoolVar(&noCache, "no-cache", false, "Disable loading/reading challenges cache")
-	flag.BoolVar(&forceCache, "force-cache", false, "Force using existing cache and skip API calls")
-	flag.BoolVar(&generateJson, "json", false, "Generate per-graph JSON reports")
-	flag.Parse()
-
-	if debug == true {
-		log.SetReportCaller(true)
-		log.SetLevel(log.DebugLevel)
-	} else {
-		// pretty console output
-		log.SetLevel(log.InfoLevel)
-		log.SetFormatter(&log.TextFormatter{ForceColors: true})
-		log.SetOutput(colorable.NewColorableStdout())
-	}
-
-	if min < 2 {
-		log.Fatalf("Please specify a --min value >= 2")
-	}
-
-	db, err := analysis.OpenDB(DATABASE_FILE)
-	if err != nil {
-		log.WithError(err).Fatalf("Unable to open database")
-	}
-	defer db.Close()
-
-	refreshHotspots := false
-	err, tooOld := analysis.LoadHotspots(HOTSPOT_CACHE_FILE)
-	if err != nil {
-		log.WithError(err).Warn("Unable to load hotspot cache.  Refreshing...")
-		refreshHotspots = true
-	} else if tooOld && !forceCache {
-		log.Infof("Refreshing...")
-		refreshHotspots = true
-	}
-
-	if refreshHotspots {
-		err = analysis.FetchHotspots(HOTSPOT_CACHE_FILE)
-		if err != nil {
-			log.WithError(err).Fatalf("Unable to load hotspots.")
-		}
-		err, _ = analysis.LoadHotspots(HOTSPOT_CACHE_FILE)
-		if err != nil {
-			log.WithError(err).Fatalf("Unable to load new hotspot cache")
-		}
-	}
-
-	if name == "" && address == "" {
-		log.Fatalf("Please specify --address or --name")
-	}
-
-	if name != "" {
-		address, err = analysis.GetHotspotAddress(name)
-		if err != nil {
-			log.Fatalf("%s", err)
-		}
-	} else {
-		name, err = analysis.GetHotspotName(address)
-		if err != nil {
-			log.Fatalf("%s", err)
-		}
-	}
-
-	// set cache file if not set
-	if challengeCache == "" {
-		challengeCache = fmt.Sprintf("%s.json", name)
-	}
-
-	// Calcuate the beginning of the day, X days back
-	hours, _ := time.ParseDuration(fmt.Sprintf("%dh", days*24))
-	startTime := time.Now().Add(-hours)
-	startDate := startTime.Format("2006-01-02")
-	start, _ := time.Parse("2006-01-02", startDate)
-
-	c := []analysis.Challenges{}
-	if noCache {
-		c, err = analysis.FetchChallenges(address, start)
-		if err != nil {
-			log.Fatalf("%s", err)
-		}
-	} else {
-		c, err = analysis.LoadChallenges(challengeCache, address, challengesExpires*3600, start, forceCache)
-		if err != nil {
-			log.WithError(err).Warnf("Unable to load challenges file. Refreshing...")
-			c, err = analysis.FetchChallenges(address, start)
-			if err != nil {
-				log.Fatalf("%s", err)
-			}
-		}
-		if !noCache {
-			analysis.WriteChallenges(c, challengeCache, address, start)
-		}
-	}
-
-	analysis.GeneratePeerGraphs(address, c, min, zoom, generateJson)
-	err = analysis.GenerateBeaconsGraph(address, c)
-	if err != nil {
-		log.WithError(err).Errorf("Unable to generate beacons graph")
-	}
-	err = analysis.GenerateWitnessesGraph(address, c)
-	if err != nil {
-		log.WithError(err).Errorf("Unable to generate witnesses graph")
-	}
-}
-*/
 
 // Version Command
 type VersionCmd struct{}

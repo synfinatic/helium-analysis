@@ -35,17 +35,16 @@ type GraphCmd struct {
 }
 
 func (cmd *GraphCmd) Run(ctx *RunContext) error {
-	var hotspotAddress string
 	cli := *ctx.Cli
 
 	// validate --minimum
 	if cli.Graph.Minimum < 2 {
-		log.Fatalf("Please specify a --minimum value >= 2")
+		return fmt.Errorf("Please specify a --minimum value >= 2")
 	}
 
 	// validate --days and set `firstTime`
 	if cli.Graph.Days < 1 {
-		log.Fatalf("Please specify a --days value >= 1")
+		return fmt.Errorf("Please specify a --days value >= 1")
 	}
 	daysOffset := time.Now().Unix() - (cli.Graph.Days * int64(24*60*60))
 	days := time.Unix(daysOffset, 0)
@@ -56,7 +55,7 @@ func (cmd *GraphCmd) Run(ctx *RunContext) error {
 	// validate --last and set `lastTime`
 	lastTime, err := parseLastTime(cli.Graph.Last)
 	if err != nil {
-		log.Fatalf("%s", err)
+		return err
 	}
 
 	// open our DB
@@ -69,20 +68,9 @@ func (cmd *GraphCmd) Run(ctx *RunContext) error {
 	// must call log.Panic() from now on!
 
 	// Is this a name or address of a hotspot?  Set `hotspotAddress`
-	var a, b, c string
-	n, err := fmt.Scanf("%s-%s-%s", cli.Graph.Address, a, b, c)
-	if n == 3 && err == nil {
-		// user provided hotspot name
-		hotspotAddress, err = db.GetHotspotAddress(cli.Graph.Address)
-		if err != nil {
-			log.WithError(err).Panicf("Invalid hotspot name '%s'.  Refresh hotspot cache?", cli.Graph.Address)
-		}
-	} else {
-		_, err = db.GetHotspotName(cli.Graph.Address)
-		if err != nil {
-			log.WithError(err).Panicf("Invalid hotspot address '%s'  Refresh hotspot cache?", cli.Graph.Address)
-		}
-		hotspotAddress = cli.Graph.Address
+	hotspotAddress, err := db.GetHotspotByUnknown(cli.Graph.Address)
+	if err != nil {
+		return err
 	}
 
 	err = db.LoadChallenges(hotspotAddress, firstTime, lastTime)
@@ -90,11 +78,30 @@ func (cmd *GraphCmd) Run(ctx *RunContext) error {
 		log.WithError(err).Warnf("Unable to refresh challenges.  Using cache.")
 	}
 
-	_, err = db.GetChallenges(hotspotAddress, firstTime, lastTime)
+	challenges, err := db.GetChallenges(hotspotAddress, firstTime, lastTime)
 	if err != nil {
 		log.WithError(err).Panic("Unable to load challenges")
 	}
 
+	err = analysis.GenerateBeaconsGraph(hotspotAddress, challenges)
+	if err != nil {
+		log.WithError(err).Error("Unable to generate beacons graph")
+	}
+
+	err = analysis.GenerateWitnessesGraph(hotspotAddress, challenges)
+	if err != nil {
+		log.WithError(err).Error("Unable to generate witnesses graph")
+	}
+
+	settings := analysis.PeerGraphSettings{
+		Min:  cli.Graph.Minimum,
+		Zoom: false,
+		Json: cli.Graph.Json,
+	}
+	err = analysis.GeneratePeerGraphs(hotspotAddress, challenges, settings)
+	if err != nil {
+		log.WithError(err).Error("Unable to generate peer graph(s)")
+	}
 	return nil
 }
 

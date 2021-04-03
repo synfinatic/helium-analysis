@@ -266,6 +266,62 @@ func GenerateWitnessesGraph(address string, results []Challenges) error {
 	return nil
 }
 
+type PeerGraphSettings struct {
+	Min  int  // minimum challenges
+	Zoom bool // zoom in
+	Json bool // generate json for each pair
+}
+
+// Generate all the peer graphs for a given address
+func GeneratePeerGraphs(address string, challenges []Challenges, settings PeerGraphSettings) error {
+	addresses, err := GetListOfAddresses(challenges)
+	if err != nil {
+		return err
+	}
+
+	x_min := 0.0
+	x_max := 0.0
+	if !settings.Zoom {
+		for i := 0; x_max == 0; i++ {
+			max, err := challenges[i].GetTimestamp()
+			if err == nil {
+				x_max = float64(max)
+			}
+		}
+		for i := len(challenges) - 1; x_min == 0; i-- {
+			min, err := challenges[i].GetTimestamp()
+			if err == nil {
+				x_min = float64(min)
+			}
+		}
+	}
+
+	cnt := 0
+	for _, peer := range addresses {
+		wr, err := getWitnessResults(address, peer, challenges)
+		if err != nil {
+			log.WithError(err).Errorf("Unable to process: %s", peer)
+			continue
+		}
+
+		var join_time int64 = 0
+		host, err := GetHotspot(peer)
+		if err == nil {
+			join_time, err = getTimeForHeight(host.BlockAdded, challenges)
+		}
+
+		err, generated := generatePeerGraph(address, peer, wr, settings.Min, x_min, x_max, join_time, settings.Json)
+		if err != nil {
+			log.WithError(err).Errorf("Unable to generate graph")
+		}
+		if generated {
+			cnt += 1
+		}
+	}
+	return nil
+}
+
+// Generate each peer graph
 func generatePeerGraph(address, witness string, results []WitnessResult, min int, x_min, x_max float64, join_time int64, generateJson bool) (error, bool) {
 	a, err := GetHotspotName(address)
 	if err != nil {
@@ -565,51 +621,4 @@ func generatePeerGraph(address, witness string, results []WitnessResult, min int
 		ioutil.WriteFile(jsonFilename, jdata, 0644)
 	}
 	return nil, true
-}
-
-func GeneratePeerGraphs(address string, challenges []Challenges, min int, zoom, generateJson bool) {
-	addresses, err := GetListOfAddresses(challenges)
-	if err != nil {
-		log.WithError(err).Fatalf("Unable to get addresses")
-	}
-
-	x_min := 0.0
-	x_max := 0.0
-	if !zoom {
-		for i := 0; x_max == 0; i++ {
-			max, err := challenges[i].GetTimestamp()
-			if err == nil {
-				x_max = float64(max)
-			}
-		}
-		for i := len(challenges) - 1; x_min == 0; i-- {
-			min, err := challenges[i].GetTimestamp()
-			if err == nil {
-				x_min = float64(min)
-			}
-		}
-	}
-
-	cnt := 0
-	for _, peer := range addresses {
-		wr, err := getWitnessResults(address, peer, challenges)
-		if err != nil {
-			log.WithError(err).Errorf("Unable to process: %s", peer)
-			continue
-		}
-
-		var join_time int64 = 0
-		host, err := GetHotspot(peer)
-		if err == nil {
-			join_time, err = getTimeForHeight(host.BlockAdded, challenges)
-		}
-
-		err, generated := generatePeerGraph(address, peer, wr, min, x_min, x_max, join_time, generateJson)
-		if err != nil {
-			log.WithError(err).Errorf("Unable to generate graph")
-		}
-		if generated {
-			cnt += 1
-		}
-	}
 }

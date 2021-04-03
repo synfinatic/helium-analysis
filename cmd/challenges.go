@@ -22,17 +22,19 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/synfinatic/helium-analysis/analysis"
 )
 
-type HotspotsCmd struct {
-	Action string `kong:"name='action',enum='refresh,export',default='export',help='Available actions: refresh,export'"`
-	File   string `kong:"name='output',short='o',default='stdout',help='Output file for export'"`
+type ChallengesCmd struct {
+	Action  string `kong:"name='action',enum='export',default='export',help='Available actions: export'"`
+	Address string `kong:"name='address',short='a',help='Hotspot name or address to process'"`
+	File    string `kong:"name='output',short='o',default='stdout',help='Output file for export'"`
 }
 
-func (cmd *HotspotsCmd) Run(ctx *RunContext) error {
+func (cmd *ChallengesCmd) Run(ctx *RunContext) error {
 	cli := *ctx.Cli
 
 	// open our DB
@@ -44,34 +46,25 @@ func (cmd *HotspotsCmd) Run(ctx *RunContext) error {
 
 	// must call log.Panic() from now on!
 
-	if cli.Hotspots.Action == "refresh" {
-		hotspots, err := analysis.FetchHotspots()
+	if cli.Challenges.Action == "export" {
+		// Is this a name or address of a hotspot?  Set `hotspotAddress`
+		hotspotAddress, err := db.GetHotspotByUnknown(cli.Challenges.Address)
 		if err != nil {
-			log.WithError(err).Panicf("Unable to fetch hotspots")
+			log.Panicf("%s", err)
 		}
 
-		return db.SetAllHotspots(hotspots)
-	}
-
-	if cli.Hotspots.Action == "export" {
-		hotspots, err := db.GetHotspots()
-		if err != nil {
-			return fmt.Errorf("Unable to get hotspots: %s", err)
-		}
-
-		jdata, err := json.MarshalIndent(hotspots, "", "  ")
+		challenges, err := db.GetChallenges(hotspotAddress, time.Unix(0, 0), time.Now())
+		jdata, err := json.MarshalIndent(challenges, "", "  ")
 		if err != nil {
 			return err
 		}
 
-		if cli.Hotspots.File == "stdout" {
+		if cli.Challenges.File == "stdout" {
 			fmt.Printf("%s", string(jdata))
 			return nil
-		} else {
-			return ioutil.WriteFile(cli.Hotspots.File, jdata, 0644)
 		}
-
+		return ioutil.WriteFile(cli.Challenges.File, jdata, 0644)
 	}
 
-	return fmt.Errorf("Unknown command: %s", cli.Hotspots.Action)
+	return fmt.Errorf("Unsupported action: %s", cli.Challenges.Action)
 }

@@ -81,6 +81,25 @@ func (b *BoltDB) GetHotspot(address string) (Hotspot, error) {
 	return h, err
 }
 
+// Get all the hotspots in the DB
+func (b *BoltDB) GetHotspots() ([]Hotspot, error) {
+	hotspots := []Hotspot{}
+	err := b.db.View(func(tx *bolt.Tx) error {
+		buck := tx.Bucket(HOTSPOTS_BUCKET)
+		cursor := buck.Cursor()
+
+		for k, v := cursor.First(); k != nil; k, v = cursor.Next() {
+			h := Hotspot{}
+			if v != nil {
+				json.Unmarshal(v, &h)
+			}
+			hotspots = append(hotspots, h)
+		}
+		return nil
+	})
+	return hotspots, err
+}
+
 // Write a list of hotspots to the database under the address and name
 func (b *BoltDB) SetHotspots(hotspots []Hotspot) error {
 	err := b.db.Update(func(tx *bolt.Tx) error {
@@ -302,4 +321,25 @@ func (b *BoltDB) GetChallenges(address string, first time.Time, last time.Time) 
 		return nil
 	})
 	return challenges, err
+}
+
+// Returns the address of the hotspot given an address or name
+func (b *BoltDB) GetHotspotByUnknown(addressOrName string) (string, error) {
+	var hotspotAddress string
+	var aa, bb, cc string // unused
+	n, err := fmt.Scanf("%s-%s-%s", addressOrName, aa, bb, cc)
+	if n == 3 && err == nil {
+		// user provided hotspot name
+		hotspotAddress, err = b.GetHotspotAddress(addressOrName)
+		if err != nil {
+			return "", fmt.Errorf("Invalid hotspot name '%s'.  Refresh hotspot cache?", addressOrName)
+		}
+	} else {
+		_, err = b.GetHotspotName(addressOrName)
+		if err != nil {
+			return "", fmt.Errorf("Invalid hotspot address '%s'.  Refresh hotspot cache?", addressOrName)
+		}
+		hotspotAddress = addressOrName
+	}
+	return hotspotAddress, nil
 }
