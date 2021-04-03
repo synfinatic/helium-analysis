@@ -44,8 +44,10 @@ type RunContext struct {
 
 type CLI struct {
 	// Common Arguments
-	LogLevel   string        `kong:"optional,short='l',name='loglevel',default='info',enum='error,warn,info,debug',help='Logging level [error|warn|info|debug]'"`
-	Database   string        `kong:"optional,name='database',default='helium.db',help='Database file'"`
+	LogLevel string `kong:"optional,short='l',name='loglevel',default='info',enum='error,warn,info,debug',help='Logging level [error|warn|info|debug]'"`
+	Database string `kong:"optional,short='d',name='database',default='helium.db',help='Database file'"`
+
+	// sub commands
 	Graph      GraphCmd      `kong:"cmd,help='Generate graphs for the given hotspot'"`
 	Hotspots   HotspotsCmd   `kong:"cmd,help='Manage hotspots in database'"`
 	Challenges ChallengesCmd `kong:"cmd,help='Manage challenges in database'"`
@@ -55,7 +57,7 @@ type CLI struct {
 func main() {
 	op := kong.Description("Helium Analysis")
 	cli := CLI{}
-	ctx := kong.Parse(cli, op)
+	ctx := kong.Parse(&cli, op)
 
 	switch cli.LogLevel {
 	case "debug":

@@ -23,6 +23,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -47,7 +48,9 @@ func OpenDB(filename string) (*BoltDB, error) {
 		return nil, err
 	}
 	b := BoltDB{
-		db: x,
+		db:             x,
+		hotspotCache:   map[string]Hotspot{},
+		hotspotAddress: map[string]string{},
 	}
 
 	// initialize
@@ -70,7 +73,10 @@ func (b *BoltDB) GetHotspot(address string) (Hotspot, error) {
 	}
 
 	err := b.db.View(func(tx *bolt.Tx) error {
-		buck := tx.Bucket(HOTSPOTS_BUCKET)
+		buck, err := tx.CreateBucketIfNotExists(HOTSPOTS_BUCKET)
+		if err != nil {
+			return err
+		}
 		v := buck.Get([]byte(address))
 		if v != nil {
 			json.Unmarshal(v, &h)
@@ -79,6 +85,21 @@ func (b *BoltDB) GetHotspot(address string) (Hotspot, error) {
 	})
 	b.hotspotCache[address] = h
 	return h, err
+}
+
+// returns the height of the block chain when we cached the hotspots
+func (b *BoltDB) GetHotspotsCacheHeight() (int64, error) {
+	var val int64
+	err := b.db.View(func(tx *bolt.Tx) error {
+		buck := tx.Bucket(HOTSPOTS_BUCKET)
+		cursor := buck.Cursor()
+		_, v := cursor.First()
+		hotspot := Hotspot{}
+		json.Unmarshal(v, &hotspot)
+		val = hotspot.Block
+		return nil
+	})
+	return val, err
 }
 
 // Get all the hotspots in the DB
@@ -103,36 +124,40 @@ func (b *BoltDB) GetHotspots() ([]Hotspot, error) {
 // Write a list of hotspots to the database under the address and name
 func (b *BoltDB) SetHotspots(hotspots []Hotspot) error {
 	err := b.db.Update(func(tx *bolt.Tx) error {
-		buck := tx.Bucket(HOTSPOTS_BUCKET)
 		for _, hotspot := range hotspots {
-			b.setHotspot(buck, hotspot)
+			err := b.setHotspot(tx, hotspot)
+			if err != nil {
+				return err
+			}
 		}
-		return tx.Commit()
+		return nil
 	})
 	return err
 }
 
-// Write a list of hotspots to the database under the address and name
-// and update cache time
+// Write a list of hotspots to the database under the address
 func (b *BoltDB) SetAllHotspots(hotspots []Hotspot) error {
 	err := b.db.Update(func(tx *bolt.Tx) error {
-		buck := tx.Bucket(HOTSPOTS_BUCKET)
 		for _, hotspot := range hotspots {
-			b.setHotspot(buck, hotspot)
+			err := b.setHotspot(tx, hotspot)
+			if err != nil {
+				return err
+			}
 		}
-		buf := make([]byte, 8)
-		binary.PutVarint(buf, time.Now().Unix())
-
-		buck.Put(HOTSPOTS_CACHE_KEY, buf)
-		return tx.Commit()
+		return nil
 	})
 	return err
 }
 
-func (b *BoltDB) setHotspot(buck *bolt.Bucket, hotspot Hotspot) error {
+func (b *BoltDB) setHotspot(tx *bolt.Tx, hotspot Hotspot) error {
 	jdata, err := json.Marshal(hotspot)
 	if err != nil {
 		return err // rollback
+	}
+
+	buck, err := tx.CreateBucketIfNotExists(HOTSPOTS_BUCKET)
+	if err != nil {
+		return err
 	}
 
 	// store canonical value based on address
@@ -141,18 +166,29 @@ func (b *BoltDB) setHotspot(buck *bolt.Bucket, hotspot Hotspot) error {
 		return err // rollback
 	}
 
-	// store timeseries
-	key := fmt.Sprintf("%s-%d", hotspot.Address, time.Now().Unix())
-	err = buck.Put([]byte(key), jdata)
-	if err != nil {
-		return err // rollback
+	// store name => address mapping
+	check := buck.Get([]byte(hotspot.Name))
+	if check == nil {
+		err = buck.Put([]byte(hotspot.Name), []byte(hotspot.Address))
+		if err != nil {
+			return err // rollback
+		}
 	}
 
-	// store name => address mapping
-	err = buck.Put([]byte(hotspot.Name), []byte(hotspot.Address))
-	if err != nil {
-		return err // rollback
-	}
+	/*
+		FIXME: not really sure what info I want to keep?  The whole record is quite large
+		and only a few variables change very often.  Can we just store a diff?
+
+		// store timeseries, using the block as the key
+		tsbuck, err := tx.CreateBucketIfNotExists([]byte(hotspot.Address))
+		if err != nil {
+			return err // rollback
+		}
+		key := make([]byte, 8)
+		binary.PutVarint(key, hotspot.Block)
+		err = tsbuck.Put(key, jdata)
+	*/
+
 	b.hotspotCache[hotspot.Address] = hotspot
 	return nil
 }
@@ -191,6 +227,7 @@ func (b *BoltDB) GetHotspotAddress(name string) (string, error) {
 	if h, ok := b.hotspotCache[address]; ok {
 		return h.Name, nil
 	}
+	log.Debugf("cache miss")
 	err := b.db.View(func(tx *bolt.Tx) error {
 		buck := tx.Bucket(HOTSPOTS_BUCKET)
 		v := buck.Get([]byte(name))
@@ -223,10 +260,12 @@ func (b *BoltDB) LoadHotspots(last time.Time) error {
 	return b.SetAllHotspots(hotspots)
 }
 
+const UTC_FORMAT = "2006-01-02 15:04:05"
+
 // Load all the challenges as old as first if last <= time.Now()
 func (b *BoltDB) LoadChallenges(address string, first time.Time, last time.Time) error {
+	log.Debugf("Loading %s => %s", first.Format(UTC_FORMAT), last.Format(UTC_FORMAT))
 	bucketName := []byte(fmt.Sprintf("challenges:%s", address))
-	now := time.Now()
 	err := b.db.Update(func(tx *bolt.Tx) error {
 		buck, err := tx.CreateBucketIfNotExists(bucketName)
 		if err != nil {
@@ -242,8 +281,11 @@ func (b *BoltDB) LoadChallenges(address string, first time.Time, last time.Time)
 			return fmt.Errorf("unable to decode kLast: %d", cnt)
 		}
 		kLastTime := time.Unix(bLast, 0)
+		log.Debugf("last time: %s", kLastTime.Format(UTC_FORMAT))
+		zeroTime := time.Unix(0, 0)
+		log.Debugf("zero time: %s", zeroTime.Format(UTC_FORMAT))
 
-		if kLastTime.Before(now) || kLastTime.Equal(now) {
+		if !kLastTime.Equal(zeroTime) && (kLastTime.Before(first) || kLastTime.Equal(first)) {
 			log.Infof("Cache is up to date")
 			return nil
 		} else {
@@ -326,20 +368,31 @@ func (b *BoltDB) GetChallenges(address string, first time.Time, last time.Time) 
 // Returns the address of the hotspot given an address or name
 func (b *BoltDB) GetHotspotByUnknown(addressOrName string) (string, error) {
 	var hotspotAddress string
-	var aa, bb, cc string // unused
-	n, err := fmt.Scanf("%s-%s-%s", addressOrName, aa, bb, cc)
-	if n == 3 && err == nil {
+	var err error
+
+	log.Debugf("????? %s", addressOrName)
+	x := strings.Split(addressOrName, "-")
+
+	if len(x) == 3 {
+		log.Debugf("we were passed a name: %s", addressOrName)
 		// user provided hotspot name
 		hotspotAddress, err = b.GetHotspotAddress(addressOrName)
-		if err != nil {
-			return "", fmt.Errorf("Invalid hotspot name '%s'.  Refresh hotspot cache?", addressOrName)
+		if err != nil || len(hotspotAddress) == 0 {
+			hotspotAddress, err = b.GetHotspotAddress(addressOrName)
+			if err != nil {
+				return "", fmt.Errorf("Invalid hotspot name '%s'.  Refresh hotspot cache?", addressOrName)
+			}
+			log.Debugf("Found: %s", hotspotAddress)
 		}
-	} else {
-		_, err = b.GetHotspotName(addressOrName)
-		if err != nil {
+	} else if len(x) == 0 {
+		log.Debugf("we were passed an address: %s", addressOrName)
+		name, err := b.GetHotspotName(addressOrName)
+		if err != nil || len(name) == 0 {
 			return "", fmt.Errorf("Invalid hotspot address '%s'.  Refresh hotspot cache?", addressOrName)
 		}
 		hotspotAddress = addressOrName
+	} else {
+		return "", fmt.Errorf("Invalid hotspot address: %s", addressOrName)
 	}
 	return hotspotAddress, nil
 }

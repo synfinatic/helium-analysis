@@ -26,6 +26,49 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+const (
+	HOTSPOT_URL  = "https://api.helium.io/v1/hotspots/%s"
+	HOTSPOTS_URL = "https://api.helium.io/v1/hotspots"
+	HEIGHT_URL   = "https://api.helium.io/v1/blocks/height"
+)
+
+type HotspotResponse struct {
+	Data Hotspot `json:"data"`
+}
+
+type HotspotsResponse struct {
+	Data   []Hotspot `json:"data"`
+	Cursor string    `json:"cursor"`
+}
+
+type HeightResponse struct {
+	Data map[string]int64 `json:"data"`
+}
+
+// Gets the current height of the blockchain
+func GetCurrentHeight() (int64, error) {
+	var resp *resty.Response
+	var err error
+
+	client := resty.New()
+	resp, err = client.R().
+		SetHeader("Accept", "application/json").
+		SetResult(&HeightResponse{}).
+		Get(HEIGHT_URL)
+
+	if err != nil {
+		return 0, err
+	}
+	if resp.IsError() {
+		return 0, fmt.Errorf("Error %d: %s", resp.StatusCode(), resp.String())
+	}
+	result := (resp.Result().(*HeightResponse))
+	if val, ok := result.Data["height"]; ok {
+		return val, nil
+	}
+	return 0, fmt.Errorf("Missing height in API reponse")
+}
+
 // Download hotspot data from helium.api servers and saves to filename
 func FetchHotspots() ([]Hotspot, error) {
 	hotspots := []Hotspot{}
@@ -49,6 +92,7 @@ func FetchHotspots() ([]Hotspot, error) {
 			last_size = len(hotspots)
 		}
 		first_time = false
+		time.Sleep(time.Duration(250) * time.Millisecond) // sleep 250ms between calls
 	}
 
 	log.Debugf("found %d hotspots", len(hotspots))
@@ -93,6 +137,7 @@ func FetchChallenges(address string, start time.Time) ([]Challenges, error) {
 			if totalChallenges%100 == 0 {
 				log.Infof("Loaded %d challenges", totalChallenges)
 			}
+			time.Sleep(time.Duration(250) * time.Millisecond) // sleep 250ms between calls
 		}
 	}
 

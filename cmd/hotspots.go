@@ -27,12 +27,19 @@ import (
 	"github.com/synfinatic/helium-analysis/analysis"
 )
 
-type HotspotsCmd struct {
-	Action string `kong:"name='action',enum='refresh,export',default='export',help='Available actions: refresh,export'"`
-	File   string `kong:"name='output',short='o',default='stdout',help='Output file for export'"`
+type HotspotsExportCmd struct {
+	File string `kong:"name='output',short='o',default='stdout',help='Output file for export'"`
 }
 
-func (cmd *HotspotsCmd) Run(ctx *RunContext) error {
+type HotspotsRefreshCmd struct {
+}
+
+type HotspotsCmd struct {
+	Export  HotspotsExportCmd  `kong:"cmd,help='Export hotspots as JSON'"`
+	Refresh HotspotsRefreshCmd `kong:"cmd,help='Refresh hotspots database cache'"`
+}
+
+func (cmd *HotspotsExportCmd) Run(ctx *RunContext) error {
 	cli := *ctx.Cli
 
 	// open our DB
@@ -44,34 +51,40 @@ func (cmd *HotspotsCmd) Run(ctx *RunContext) error {
 
 	// must call log.Panic() from now on!
 
-	if cli.Hotspots.Action == "refresh" {
-		hotspots, err := analysis.FetchHotspots()
-		if err != nil {
-			log.WithError(err).Panicf("Unable to fetch hotspots")
-		}
-
-		return db.SetAllHotspots(hotspots)
+	hotspots, err := db.GetHotspots()
+	if err != nil {
+		return fmt.Errorf("Unable to get hotspots: %s", err)
 	}
 
-	if cli.Hotspots.Action == "export" {
-		hotspots, err := db.GetHotspots()
-		if err != nil {
-			return fmt.Errorf("Unable to get hotspots: %s", err)
-		}
-
-		jdata, err := json.MarshalIndent(hotspots, "", "  ")
-		if err != nil {
-			return err
-		}
-
-		if cli.Hotspots.File == "stdout" {
-			fmt.Printf("%s", string(jdata))
-			return nil
-		} else {
-			return ioutil.WriteFile(cli.Hotspots.File, jdata, 0644)
-		}
-
+	jdata, err := json.MarshalIndent(hotspots, "", "  ")
+	if err != nil {
+		return err
 	}
 
-	return fmt.Errorf("Unknown command: %s", cli.Hotspots.Action)
+	if cli.Hotspots.Export.File != "stdout" {
+		return ioutil.WriteFile(cli.Hotspots.Export.File, jdata, 0644)
+	}
+
+	fmt.Printf("%s", string(jdata))
+	return nil
+}
+
+func (cmd *HotspotsRefreshCmd) Run(ctx *RunContext) error {
+	cli := *ctx.Cli
+
+	// open our DB
+	db, err := analysis.OpenDB(cli.Database)
+	if err != nil {
+		log.WithError(err).Fatalf("Unable to open database")
+	}
+	defer db.Close()
+
+	// must call log.Panic() from now on!
+
+	hotspots, err := analysis.FetchHotspots()
+	if err != nil {
+		log.WithError(err).Panicf("Unable to fetch hotspots")
+	}
+
+	return db.SetAllHotspots(hotspots)
 }

@@ -28,13 +28,22 @@ import (
 	"github.com/synfinatic/helium-analysis/analysis"
 )
 
-type ChallengesCmd struct {
-	Action  string `kong:"name='action',enum='export',default='export',help='Available actions: export'"`
-	Address string `kong:"name='address',short='a',help='Hotspot name or address to process'"`
+type ChallengesExportCmd struct {
+	Address string `kong:"arg,required,help='Hotspot name or address to process'"`
 	File    string `kong:"name='output',short='o',default='stdout',help='Output file for export'"`
 }
 
-func (cmd *ChallengesCmd) Run(ctx *RunContext) error {
+type ChallengesRefreshCmd struct {
+	Address string `kong:"arg,required,help='Hotspot name or address to process'"`
+	Days    string `kong:"name='days',short='d',default=30,help='Previous number of days to load'"`
+}
+
+type ChallengesCmd struct {
+	Export  ChallengesExportCmd  `kong:"cmd,help='Export challenges for given hotspot as JSON'"`
+	Refresh ChallengesRefreshCmd `kong:"cmd,help='Refresh challenges in database for given hotspot'"`
+}
+
+func (cmd *ChallengesExportCmd) Run(ctx *RunContext) error {
 	cli := *ctx.Cli
 
 	// open our DB
@@ -46,25 +55,49 @@ func (cmd *ChallengesCmd) Run(ctx *RunContext) error {
 
 	// must call log.Panic() from now on!
 
-	if cli.Challenges.Action == "export" {
-		// Is this a name or address of a hotspot?  Set `hotspotAddress`
-		hotspotAddress, err := db.GetHotspotByUnknown(cli.Challenges.Address)
-		if err != nil {
-			log.Panicf("%s", err)
-		}
-
-		challenges, err := db.GetChallenges(hotspotAddress, time.Unix(0, 0), time.Now())
-		jdata, err := json.MarshalIndent(challenges, "", "  ")
-		if err != nil {
-			return err
-		}
-
-		if cli.Challenges.File == "stdout" {
-			fmt.Printf("%s", string(jdata))
-			return nil
-		}
-		return ioutil.WriteFile(cli.Challenges.File, jdata, 0644)
+	// Is this a name or address of a hotspot?  Set `hotspotAddress`
+	hotspotAddress, err := db.GetHotspotByUnknown(cli.Challenges.Export.Address)
+	if err != nil {
+		log.Panicf("%s", err)
 	}
 
-	return fmt.Errorf("Unsupported action: %s", cli.Challenges.Action)
+	challenges, err := db.GetChallenges(hotspotAddress, time.Unix(0, 0), time.Now())
+	jdata, err := json.MarshalIndent(challenges, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	if cli.Challenges.Export.File != "stdout" {
+		return ioutil.WriteFile(cli.Challenges.Export.File, jdata, 0644)
+	}
+	fmt.Printf("%s", string(jdata))
+	return nil
+}
+
+func (cmd *ChallengesRefreshCmd) Run(ctx *RunContext) error {
+	cli := *ctx.Cli
+
+	// open our DB
+	db, err := analysis.OpenDB(cli.Database)
+	if err != nil {
+		log.WithError(err).Fatalf("Unable to open database")
+	}
+	defer db.Close()
+
+	// must call log.Panic() from now on!
+
+	// Is this a name or address of a hotspot?  Set `hotspotAddress`
+	hotspotAddress, err := db.GetHotspotByUnknown(cli.Challenges.Refresh.Address)
+	if err != nil {
+		return err
+	}
+
+	daysOffset := time.Now().Unix() - (cli.Graph.Days * int64(24*60*60))
+	days := time.Unix(daysOffset, 0)
+	// go to the beginning of the day UTC
+	startDate := days.Format("2006-01-02")
+	firstTime, _ := time.Parse("2006-01-02", startDate)
+	lastTime := time.Now()
+
+	return db.LoadChallenges(hotspotAddress, firstTime, lastTime)
 }

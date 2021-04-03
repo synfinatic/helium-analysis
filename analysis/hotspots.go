@@ -28,15 +28,6 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-type HotspotResponse struct {
-	Data Hotspot `json:"data"`
-}
-
-type HotspotsResponse struct {
-	Data   []Hotspot `json:"data"`
-	Cursor string    `json:"cursor"`
-}
-
 type HotspotCache struct {
 	Time     int64     `json:"time"`
 	Hotspots []Hotspot `json:"hotspots"`
@@ -64,8 +55,6 @@ type StatusType struct {
 
 const (
 	HOTSPOT_CACHE_TIMEOUT = 86400 // one day
-	HOTSPOT_URL           = "https://api.helium.io/v1/hotspots/%s"
-	HOTSPOTS_URL          = "https://api.helium.io/v1/hotspots"
 	HOTSPOT_CACHE_FILE    = "hotspots.json"
 )
 
