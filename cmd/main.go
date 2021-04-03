@@ -20,13 +20,12 @@ package main
 
 import (
 	"fmt"
-	"os"
-	"time"
+	//	"time"
 
+	"github.com/alecthomas/kong"
 	"github.com/mattn/go-colorable"
 	log "github.com/sirupsen/logrus"
-	flag "github.com/spf13/pflag"
-	"github.com/synfinatic/helium-analysis/analysis"
+	//	"github.com/synfinatic/helium-analysis/analysis"
 )
 
 var Version = "unknown"
@@ -40,7 +39,56 @@ const (
 	DATABASE_FILE            = "helium.db"
 )
 
+type RunContext struct {
+	Ctx *kong.Context
+	Cli *CLI
+}
+
+type CLI struct {
+	// Common Arguments
+	LogLevel string `kong:"optional,short='l',name='loglevel',default='info',enum='error,warn,info,debug',help='Logging level [error|warn|info|debug]'"`
+	Database string `kong:"optional,name='database',default='helium.db',help='Database file'"`
+	// Commands
+	//      Role RoleCmd `kong:"cmd,help='Fetch & cache AWS STS Token for a given Role/Profile'"`
+	//      App   AppCmd   `kong:"cmd,help='Fetch & cache all AWS STS Tokens for a given OneLogin AppID'"`
+	//	Hotspots HotspotsCmd `kong:"cmd,help='Refresh list of hotspots'"`
+	Graph GraphCmd `kong:"cmd,help='Generate graphs for the given hotspot'"`
+	//	Export   ExportCmd   `kong:"cmd,help='Export portion of database as JSON'"`
+	Version VersionCmd `kong:"cmd,help='Print version and exit'"`
+}
+
 func main() {
+	op := kong.Description("Helium Analysis")
+	cli := CLI{}
+	ctx := kong.Parse(cli, op)
+
+	switch cli.LogLevel {
+	case "debug":
+		log.SetLevel(log.DebugLevel)
+		log.SetReportCaller(true)
+	case "info":
+		log.SetLevel(log.InfoLevel)
+		log.SetOutput(colorable.NewColorableStdout())
+	case "warn":
+		log.SetLevel(log.WarnLevel)
+		log.SetOutput(colorable.NewColorableStdout())
+	case "error":
+		log.SetLevel(log.ErrorLevel)
+		log.SetOutput(colorable.NewColorableStdout())
+	}
+
+	run_ctx := RunContext{
+		Ctx: ctx,
+		Cli: &cli,
+	}
+	err := ctx.Run(&run_ctx)
+	if err != nil {
+		log.Fatalf("Error running command: %s", err.Error())
+	}
+}
+
+/*
+func oldMain() {
 	var debug, version, zoom, noCache, forceCache, generateJson bool
 	var address, challengeCache, name string
 	var min, days int
@@ -69,14 +117,6 @@ func main() {
 		log.SetLevel(log.InfoLevel)
 		log.SetFormatter(&log.TextFormatter{ForceColors: true})
 		log.SetOutput(colorable.NewColorableStdout())
-	}
-
-	if version == true {
-		fmt.Printf("Helium Analysis v%s -- Copyright 2021 Aaron Turner\n", Version)
-		fmt.Printf("%s (%s) built at %s\n", CommitID, Tag, Buildinfos)
-		fmt.Printf("\nIf you find this useful, please donate a few HNT to:\n")
-		fmt.Printf("144xaKFbp4arCNWztcDbB8DgWJFCZxc8AtAKuZHZ6Ejew44wL8z")
-		os.Exit(0)
 	}
 
 	if min < 2 {
@@ -166,4 +206,16 @@ func main() {
 	if err != nil {
 		log.WithError(err).Errorf("Unable to generate witnesses graph")
 	}
+}
+*/
+
+// Version Command
+type VersionCmd struct{}
+
+func (cmd *VersionCmd) Run(ctx *RunContext) error {
+	fmt.Printf("Helium Analysis v%s -- Copyright 2021 Aaron Turner\n", Version)
+	fmt.Printf("%s (%s) built at %s\n", CommitID, Tag, Buildinfos)
+	fmt.Printf("\nIf you find this useful, please donate a few HNT to:\n")
+	fmt.Printf("144xaKFbp4arCNWztcDbB8DgWJFCZxc8AtAKuZHZ6Ejew44wL8z")
+	return nil
 }

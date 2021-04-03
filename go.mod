@@ -3,6 +3,7 @@ module github.com/synfinatic/helium-analysis
 go 1.15
 
 require (
+	github.com/alecthomas/kong v0.2.16
 	github.com/davecgh/go-spew v1.1.1
 	github.com/go-resty/resty/v2 v2.3.0
 	github.com/mattn/go-colorable v0.1.8

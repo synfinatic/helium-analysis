@@ -19,6 +19,7 @@ package analysis
  */
 
 import (
+	"bytes"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
@@ -241,7 +242,7 @@ func (b *BoltDB) LoadChallenges(address string, first time.Time, last time.Time)
 		// see if we have everything already cached
 		if (kFirstTime.Before(first) || kFirstTime.Equal(first)) &&
 			(kLastTime.After(last) || kLastTime.Equal(last)) {
-			return nil // rollback
+			return nil
 		}
 
 		// load everything we need from the API
@@ -272,4 +273,33 @@ func (b *BoltDB) LoadChallenges(address string, first time.Time, last time.Time)
 		return nil
 	})
 	return err
+}
+
+func (b *BoltDB) GetChallenges(address string, first time.Time, last time.Time) ([]Challenges, error) {
+	bucketName := []byte(fmt.Sprintf("challenges:%s", address))
+	challenges := []Challenges{}
+
+	err := b.db.View(func(tx *bolt.Tx) error {
+		buck, err := tx.CreateBucketIfNotExists(bucketName)
+		if err != nil {
+			return err
+		}
+
+		cursor := buck.Cursor()
+		minKey := make([]byte, 8)
+		maxKey := make([]byte, 8)
+		binary.PutVarint(minKey, first.Unix())
+		binary.PutVarint(maxKey, first.Unix())
+
+		for k, v := cursor.Seek(minKey); k != nil && bytes.Compare(k, maxKey) <= 0; k, v = cursor.Next() {
+			challenge := Challenges{}
+			err := json.Unmarshal(v, &challenge)
+			if err != nil {
+				return err
+			}
+			challenges = append(challenges, challenge)
+		}
+		return nil
+	})
+	return challenges, err
 }
