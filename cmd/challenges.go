@@ -21,11 +21,9 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	log "github.com/sirupsen/logrus"
 	"io/ioutil"
 	"time"
-
-	log "github.com/sirupsen/logrus"
-	"github.com/synfinatic/helium-analysis/analysis"
 )
 
 type ChallengesExportCmd struct {
@@ -35,7 +33,7 @@ type ChallengesExportCmd struct {
 
 type ChallengesRefreshCmd struct {
 	Address string `kong:"arg,required,help='Hotspot name or address to process'"`
-	Days    string `kong:"name='days',short='d',default=30,help='Previous number of days to load'"`
+	Days    int64  `kong:"name='days',short='d',default=30,help='Previous number of days to load'"`
 }
 
 type ChallengesCmd struct {
@@ -46,22 +44,22 @@ type ChallengesCmd struct {
 func (cmd *ChallengesExportCmd) Run(ctx *RunContext) error {
 	cli := *ctx.Cli
 
-	// open our DB
-	db, err := analysis.OpenDB(cli.Database)
-	if err != nil {
-		log.WithError(err).Fatalf("Unable to open database")
-	}
-	defer db.Close()
-
-	// must call log.Panic() from now on!
-
 	// Is this a name or address of a hotspot?  Set `hotspotAddress`
-	hotspotAddress, err := db.GetHotspotByUnknown(cli.Challenges.Export.Address)
+	hotspotAddress, err := ctx.BoltDB.GetHotspotByUnknown(cli.Challenges.Export.Address)
 	if err != nil {
-		log.Panicf("%s", err)
+		return err
 	}
 
-	challenges, err := db.GetChallenges(hotspotAddress, time.Unix(0, 0), time.Now())
+	challenges, err := ctx.BoltDB.GetChallenges(hotspotAddress, time.Unix(0, 0), time.Now())
+	if err != nil {
+		return err
+	}
+
+	log.Infof("Retrieved %d challenges", len(challenges))
+	if len(challenges) == 0 {
+		return nil
+	}
+
 	jdata, err := json.MarshalIndent(challenges, "", "  ")
 	if err != nil {
 		return err
@@ -77,27 +75,18 @@ func (cmd *ChallengesExportCmd) Run(ctx *RunContext) error {
 func (cmd *ChallengesRefreshCmd) Run(ctx *RunContext) error {
 	cli := *ctx.Cli
 
-	// open our DB
-	db, err := analysis.OpenDB(cli.Database)
-	if err != nil {
-		log.WithError(err).Fatalf("Unable to open database")
-	}
-	defer db.Close()
-
-	// must call log.Panic() from now on!
-
 	// Is this a name or address of a hotspot?  Set `hotspotAddress`
-	hotspotAddress, err := db.GetHotspotByUnknown(cli.Challenges.Refresh.Address)
+	hotspotAddress, err := ctx.BoltDB.GetHotspotByUnknown(cli.Challenges.Refresh.Address)
 	if err != nil {
 		return err
 	}
 
-	daysOffset := time.Now().Unix() - (cli.Graph.Days * int64(24*60*60))
+	daysOffset := time.Now().Unix() - (cli.Challenges.Refresh.Days * int64(24*60*60))
 	days := time.Unix(daysOffset, 0)
 	// go to the beginning of the day UTC
 	startDate := days.Format("2006-01-02")
 	firstTime, _ := time.Parse("2006-01-02", startDate)
 	lastTime := time.Now()
 
-	return db.LoadChallenges(hotspotAddress, firstTime, lastTime)
+	return ctx.BoltDB.LoadChallenges(hotspotAddress, firstTime, lastTime)
 }

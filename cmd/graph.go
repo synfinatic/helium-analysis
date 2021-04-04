@@ -28,10 +28,10 @@ import (
 
 type GraphCmd struct {
 	Address string `kong:"arg,required,name='address',help='Hotspot address or name to report on'"`
-	Days    int64  `kong:"name='days',default=30,help='Previous number of days to report on'"`
-	Last    string `kong:"name='last',default='1h',help='Age of last challenge before looking for more challenges'"`
-	Minimum int    `kong:"name='minimum',default=5,help='Minimum required challenges to generate a graph'"`
-	Json    bool   `kong:"name='json',default=false,help='Generate per-hotspot JSON files'"`
+	Days    int64  `kong:"name='days',short='d',default=30,help='Previous number of days to report on'"`
+	Last    string `kong:"name='last',short='l',default='1h',help='Age of last challenge before looking for more challenges'"`
+	Minimum int    `kong:"name='minimum',short='m',default=5,help='Minimum required challenges to generate a graph'"`
+	Json    bool   `kong:"name='json',short='j',default=false,help='Generate per-hotspot JSON files'"`
 }
 
 func (cmd *GraphCmd) Run(ctx *RunContext) error {
@@ -58,27 +58,18 @@ func (cmd *GraphCmd) Run(ctx *RunContext) error {
 		return err
 	}
 
-	// open our DB
-	db, err := analysis.OpenDB(cli.Database)
-	if err != nil {
-		log.WithError(err).Fatalf("Unable to open database")
-	}
-	defer db.Close()
-
-	// must call log.Panic() from now on!
-
 	// Is this a name or address of a hotspot?  Set `hotspotAddress`
-	hotspotAddress, err := db.GetHotspotByUnknown(cli.Graph.Address)
+	hotspotAddress, err := ctx.BoltDB.GetHotspotByUnknown(cli.Graph.Address)
 	if err != nil {
 		return err
 	}
 
-	err = db.LoadChallenges(hotspotAddress, firstTime, lastTime)
+	err = ctx.BoltDB.LoadChallenges(hotspotAddress, firstTime, lastTime)
 	if err != nil {
 		log.WithError(err).Warnf("Unable to refresh challenges.  Using cache.")
 	}
 
-	challenges, err := db.GetChallenges(hotspotAddress, firstTime, lastTime)
+	challenges, err := ctx.BoltDB.GetChallenges(hotspotAddress, firstTime, lastTime)
 	if err != nil {
 		log.WithError(err).Panic("Unable to load challenges")
 	}

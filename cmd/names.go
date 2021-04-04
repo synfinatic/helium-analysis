@@ -23,7 +23,7 @@ import (
 	"fmt"
 	"io/ioutil"
 
-	log "github.com/sirupsen/logrus"
+	//	log "github.com/sirupsen/logrus"
 	"github.com/synfinatic/helium-analysis/analysis"
 	bolt "go.etcd.io/bbolt"
 )
@@ -32,26 +32,22 @@ type NamesExportCmd struct {
 	File string `kong:"name='output',short='o',default='stdout',help='Output file for export'"`
 }
 
-type NamesCmd struct {
-	Export NamesExportCmd `kong:"cmd,help='Export hotspots as JSON'"`
+type NamesAddressCmd struct {
+	Name string `kong:"arg,required,help='Name of hotspot'"`
 }
 
+type NamesCmd struct {
+	Export  NamesExportCmd  `kong:"cmd,help='Export hotspots as JSON'"`
+	Address NamesAddressCmd `kong:"cmd,help='Lookup address for hotspot name'"`
+}
+
+// Export all the names => address as a json map
 func (cmd *NamesExportCmd) Run(ctx *RunContext) error {
 	cli := *ctx.Cli
-
-	// open our DB
-	db, err := analysis.OpenDB(cli.Database)
-	if err != nil {
-		log.WithError(err).Fatalf("Unable to open database")
-	}
-	defer db.Close()
-
-	// must call log.Panic() from now on!
-
 	names := map[string]string{}
 
-	b := db.GetDb()
-	err = b.View(func(tx *bolt.Tx) error {
+	b := ctx.BoltDB.GetDb()
+	err := b.View(func(tx *bolt.Tx) error {
 		bucket := tx.Bucket(analysis.HOTSPOT_NAMES_BUCKET)
 		cursor := bucket.Cursor()
 		for k, v := cursor.First(); k != nil; k, v = cursor.Next() {
@@ -75,4 +71,17 @@ func (cmd *NamesExportCmd) Run(ctx *RunContext) error {
 
 	fmt.Printf("%s", string(jdata))
 	return nil
+}
+
+// print a single name => address
+func (cmd *NamesAddressCmd) Run(ctx *RunContext) error {
+	cli := *ctx.Cli
+
+	address, err := ctx.BoltDB.GetHotspotAddress(cli.Names.Address.Name)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("%s => %s\n", cli.Names.Address.Name, string(address))
+
+	return err
 }

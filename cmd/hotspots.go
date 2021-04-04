@@ -31,8 +31,7 @@ type HotspotsExportCmd struct {
 	File string `kong:"name='output',short='o',default='stdout',help='Output file for export'"`
 }
 
-type HotspotsRefreshCmd struct {
-}
+type HotspotsRefreshCmd struct{}
 
 type HotspotsCmd struct {
 	Export  HotspotsExportCmd  `kong:"cmd,help='Export hotspots as JSON'"`
@@ -41,17 +40,7 @@ type HotspotsCmd struct {
 
 func (cmd *HotspotsExportCmd) Run(ctx *RunContext) error {
 	cli := *ctx.Cli
-
-	// open our DB
-	db, err := analysis.OpenDB(cli.Database)
-	if err != nil {
-		log.WithError(err).Fatalf("Unable to open database")
-	}
-	defer db.Close()
-
-	// must call log.Panic() from now on!
-
-	hotspots, err := db.GetHotspots()
+	hotspots, err := ctx.BoltDB.GetHotspots()
 	if err != nil {
 		return fmt.Errorf("Unable to get hotspots: %s", err)
 	}
@@ -70,21 +59,12 @@ func (cmd *HotspotsExportCmd) Run(ctx *RunContext) error {
 }
 
 func (cmd *HotspotsRefreshCmd) Run(ctx *RunContext) error {
-	cli := *ctx.Cli
-
-	// open our DB
-	db, err := analysis.OpenDB(cli.Database)
-	if err != nil {
-		log.WithError(err).Fatalf("Unable to open database")
-	}
-	defer db.Close()
-
-	// must call log.Panic() from now on!
+	//	cli := *ctx.Cli
 
 	hotspots, err := analysis.FetchHotspots()
 	if err != nil {
 		log.WithError(err).Panicf("Unable to fetch hotspots")
 	}
 
-	return db.SetAllHotspots(hotspots)
+	return ctx.BoltDB.SetAllHotspots(hotspots)
 }

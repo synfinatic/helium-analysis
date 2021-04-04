@@ -119,7 +119,6 @@ func FetchChallenges(address string, start time.Time) ([]Challenges, error) {
 			return challenges, nil
 		}
 
-		log.Debugf("Retrieved %d challenges", len(chals))
 		cursor = c // keep track of the cursor for next time
 
 		for i := 0; i < len(chals); i++ {

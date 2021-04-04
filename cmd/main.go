@@ -24,6 +24,7 @@ import (
 	"github.com/alecthomas/kong"
 	"github.com/mattn/go-colorable"
 	log "github.com/sirupsen/logrus"
+	"github.com/synfinatic/helium-analysis/analysis"
 )
 
 var Version = "unknown"
@@ -38,14 +39,16 @@ const (
 )
 
 type RunContext struct {
-	Ctx *kong.Context
-	Cli *CLI
+	Ctx    *kong.Context
+	Cli    *CLI
+	BoltDB *analysis.BoltDB
 }
 
 type CLI struct {
 	// Common Arguments
-	LogLevel string `kong:"optional,short='l',name='loglevel',default='info',enum='error,warn,info,debug',help='Logging level [error|warn|info|debug]'"`
-	Database string `kong:"optional,short='d',name='database',default='helium.db',help='Database file'"`
+	LogLevel string `kong:"optional,short='L',name='loglevel',default='info',enum='error,warn,info,debug',help='Logging level [error|warn|info|debug]'"`
+	Database string `kong:"optional,short='D',name='database',default='helium.db',help='Database file'"`
+	InitDb   bool   `kong:"name='init-db',help='Initialize a new database'"`
 
 	// sub commands
 	Graph      GraphCmd      `kong:"cmd,help='Generate graphs for the given hotspot'"`
@@ -75,13 +78,19 @@ func main() {
 		log.SetOutput(colorable.NewColorableStdout())
 	}
 
-	run_ctx := RunContext{
-		Ctx: ctx,
-		Cli: &cli,
-	}
-	err := ctx.Run(&run_ctx)
+	db, err := analysis.OpenDB(cli.Database, cli.InitDb)
 	if err != nil {
-		log.Fatalf("Error running command: %s", err.Error())
+		log.Fatalf("Error opening database: %s", err.Error())
+	}
+	defer db.Close()
+	run_ctx := RunContext{
+		Ctx:    ctx,
+		Cli:    &cli,
+		BoltDB: db,
+	}
+	err = ctx.Run(&run_ctx)
+	if err != nil {
+		log.Panicf("Error running command: %s", err.Error())
 	}
 }
 
