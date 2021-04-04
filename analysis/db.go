@@ -32,6 +32,7 @@ import (
 
 // "constants" in go are awesome
 var HOTSPOTS_BUCKET []byte = []byte("hotspots")
+var HOTSPOT_NAMES_BUCKET []byte = []byte("hotspot_names")
 var HOTSPOTS_CACHE_KEY []byte = []byte("hotspotcache")
 
 type BoltDB struct {
@@ -56,13 +57,26 @@ func OpenDB(filename string) (*BoltDB, error) {
 	// initialize
 	err = b.db.Update(func(tx *bolt.Tx) error {
 		_, err = tx.CreateBucketIfNotExists(HOTSPOTS_BUCKET)
-		return err
+		if err != nil {
+			return fmt.Errorf("Uanble to create bucket: %s", string(HOTSPOTS_BUCKET))
+		}
+
+		_, err = tx.CreateBucketIfNotExists(HOTSPOT_NAMES_BUCKET)
+		if err != nil {
+			return fmt.Errorf("Uanble to create bucket: %s", string(HOTSPOT_NAMES_BUCKET))
+		}
+
+		return nil
 	})
-	return &b, nil
+	return &b, err
 }
 
-func (bolt *BoltDB) Close() {
-	bolt.db.Close()
+func (b *BoltDB) Close() {
+	b.db.Close()
+}
+
+func (b *BoltDB) GetDb() *bolt.DB {
+	return b.db
 }
 
 // Get the Hotspot metadata for a given address
@@ -73,10 +87,7 @@ func (b *BoltDB) GetHotspot(address string) (Hotspot, error) {
 	}
 
 	err := b.db.View(func(tx *bolt.Tx) error {
-		buck, err := tx.CreateBucketIfNotExists(HOTSPOTS_BUCKET)
-		if err != nil {
-			return err
-		}
+		buck := tx.Bucket(HOTSPOTS_BUCKET)
 		v := buck.Get([]byte(address))
 		if v != nil {
 			json.Unmarshal(v, &h)
@@ -155,21 +166,21 @@ func (b *BoltDB) setHotspot(tx *bolt.Tx, hotspot Hotspot) error {
 		return err // rollback
 	}
 
-	buck, err := tx.CreateBucketIfNotExists(HOTSPOTS_BUCKET)
-	if err != nil {
-		return err
-	}
+	bucket := tx.Bucket(HOTSPOTS_BUCKET)
 
 	// store canonical value based on address
-	err = buck.Put([]byte(hotspot.Address), jdata)
+	err = bucket.Put([]byte(hotspot.Address), jdata)
 	if err != nil {
 		return err // rollback
 	}
 
+	namesBucket := tx.Bucket(HOTSPOT_NAMES_BUCKET)
+
 	// store name => address mapping
-	check := buck.Get([]byte(hotspot.Name))
+	check := namesBucket.Get([]byte(hotspot.Name))
 	if check == nil {
-		err = buck.Put([]byte(hotspot.Name), []byte(hotspot.Address))
+		log.Infof("Adding %s => %s", hotspot.Name, hotspot.Address)
+		err = namesBucket.Put([]byte(hotspot.Name), []byte(hotspot.Address))
 		if err != nil {
 			return err // rollback
 		}
@@ -229,15 +240,20 @@ func (b *BoltDB) GetHotspotAddress(name string) (string, error) {
 	}
 	log.Debugf("cache miss")
 	err := b.db.View(func(tx *bolt.Tx) error {
-		buck := tx.Bucket(HOTSPOTS_BUCKET)
+		buck := tx.Bucket(HOTSPOT_NAMES_BUCKET)
+		if buck == nil {
+			return fmt.Errorf("bucket %s does not exist", string(HOTSPOT_NAMES_BUCKET))
+		}
 		v := buck.Get([]byte(name))
 		if v == nil {
+			log.Debugf("%s is not in database", name)
 			return nil
 		}
 		if len(v) > 0 {
+			log.Debugf("%s => %s", name, string(v))
 			address = string(v)
 		} else {
-			return fmt.Errorf("%s is not in database", name)
+			return fmt.Errorf("%s is not in database: '%s'", name, string(v))
 		}
 		return nil
 	})
@@ -267,6 +283,7 @@ func (b *BoltDB) LoadChallenges(address string, first time.Time, last time.Time)
 	log.Debugf("Loading %s => %s", first.Format(UTC_FORMAT), last.Format(UTC_FORMAT))
 	bucketName := []byte(fmt.Sprintf("challenges:%s", address))
 	err := b.db.Update(func(tx *bolt.Tx) error {
+		// create a bucket for the challenges of our hotspot
 		buck, err := tx.CreateBucketIfNotExists(bucketName)
 		if err != nil {
 			return err
@@ -377,6 +394,9 @@ func (b *BoltDB) GetHotspotByUnknown(addressOrName string) (string, error) {
 		log.Debugf("we were passed a name: %s", addressOrName)
 		// user provided hotspot name
 		hotspotAddress, err = b.GetHotspotAddress(addressOrName)
+		if err != nil {
+			log.WithError(err).Errorf("Unable to lookup: %s", addressOrName)
+		}
 		if err != nil || len(hotspotAddress) == 0 {
 			hotspotAddress, err = b.GetHotspotAddress(addressOrName)
 			if err != nil {

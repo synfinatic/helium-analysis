@@ -51,6 +51,7 @@ type CLI struct {
 	Graph      GraphCmd      `kong:"cmd,help='Generate graphs for the given hotspot'"`
 	Hotspots   HotspotsCmd   `kong:"cmd,help='Manage hotspots in database'"`
 	Challenges ChallengesCmd `kong:"cmd,help='Manage challenges in database'"`
+	Names      NamesCmd      `kong:"cmd,help='Manage hotspot names in database'"`
 	Version    VersionCmd    `kong:"cmd,help='Print version and exit'"`
 }
 
