@@ -34,9 +34,10 @@ import (
 // "constants" in go are awesome
 var HOTSPOTS_BUCKET []byte = []byte("hotspots")
 var HOTSPOT_NAMES_BUCKET []byte = []byte("hotspot_names")
+var CHALLENGES_BUCKET []byte = []byte("challenges")
 var HOTSPOTS_CACHE_KEY []byte = []byte("hotspotcache")
 
-const UTC_FORMAT = "2006-01-02 15:04:05"
+const UTC_FORMAT = "2006-01-02 15:04:05 MST"
 
 type BoltDB struct {
 	db             *bolt.DB
@@ -48,7 +49,7 @@ func OpenDB(filename string, init bool) (*BoltDB, error) {
 	fileInfo, err := os.Stat(filename)
 	if os.IsNotExist(err) && !init {
 		return nil, fmt.Errorf("Database '%s' does not exist.  Create new DB via --init-db", filename)
-	} else if fileInfo.IsDir() {
+	} else if !init && fileInfo.IsDir() {
 		return nil, fmt.Errorf("Can not use directory '%s' as database file.", filename)
 	}
 
@@ -74,6 +75,11 @@ func OpenDB(filename string, init bool) (*BoltDB, error) {
 		_, err = tx.CreateBucketIfNotExists(HOTSPOT_NAMES_BUCKET)
 		if err != nil {
 			return fmt.Errorf("Uanble to create bucket: %s", string(HOTSPOT_NAMES_BUCKET))
+		}
+
+		_, err = tx.CreateBucketIfNotExists(CHALLENGES_BUCKET)
+		if err != nil {
+			return fmt.Errorf("Uanble to create bucket: %s", string(CHALLENGES_BUCKET))
 		}
 
 		return nil
@@ -189,7 +195,6 @@ func (b *BoltDB) setHotspot(tx *bolt.Tx, hotspot Hotspot) error {
 	// store name => address mapping
 	check := namesBucket.Get([]byte(hotspot.Name))
 	if check == nil {
-		log.Infof("Adding %s => %s", hotspot.Name, hotspot.Address)
 		err = namesBucket.Put([]byte(hotspot.Name), []byte(hotspot.Address))
 		if err != nil {
 			return err // rollback
@@ -267,7 +272,7 @@ func (b *BoltDB) GetHotspotAddress(name string) (string, error) {
 // Loads all the current hotspots into the database, if we are too old
 func (b *BoltDB) LoadHotspots(last time.Time) error {
 
-	now := time.Now()
+	now := time.Now().UTC()
 	if last.Before(now) {
 		return nil
 	}
@@ -280,72 +285,73 @@ func (b *BoltDB) LoadHotspots(last time.Time) error {
 	return b.SetAllHotspots(hotspots)
 }
 
-// returns the name of the challenge bucket for a hotspot address
-func challengeBucket(address string) ([]byte, error) {
+// returns the challenge bucket for a hotspot address
+func ChallengeBucket(tx *bolt.Tx, address string) (*bolt.Bucket, error) {
 	x := strings.Split(address, "-")
 	if len(x) == 3 {
-		return []byte{}, fmt.Errorf("Invalid address: %s", address)
+		return nil, fmt.Errorf("Invalid address: %s", address)
 	}
 
-	return []byte(fmt.Sprintf("challenges:%s", address)), nil
+	bucket := tx.Bucket(CHALLENGES_BUCKET)
+	challengeBucket, err := bucket.CreateBucketIfNotExists([]byte(address))
+	if err != nil {
+		return nil, err
+	}
 
+	return challengeBucket, nil
 }
 
-// Load all the challenges as old as first if last <= time.Now()
-func (b *BoltDB) LoadChallenges(address string, first time.Time, last time.Time) error {
+// Load all the challenges as old as first if last <= time.UTC()
+func (b *BoltDB) LoadChallenges(address string, first, last time.Time, holddown time.Duration) error {
 	log.Debugf("Loading %s => %s", first.Format(UTC_FORMAT), last.Format(UTC_FORMAT))
-	bucketName, err := challengeBucket(address)
-	if err != nil {
-		return err
-	}
 
-	err = b.db.Update(func(tx *bolt.Tx) error {
+	err := b.db.Update(func(tx *bolt.Tx) error {
 		// create a bucket for the challenges of our hotspot
-		bucket, err := tx.CreateBucketIfNotExists(bucketName)
+		bucket, err := ChallengeBucket(tx, address)
 		if err != nil {
 			return err
 		}
 
 		cursor := bucket.Cursor()
 
+		var kFirstTime, kLastTime time.Time
 		// lookup first and last time in DB
 		kLast, _ := cursor.Last()
-		bLast, cnt := binary.Varint(kLast)
-		if cnt < 0 {
-			return fmt.Errorf("unable to decode kLast: %d", cnt)
-		}
-		kLastTime := time.Unix(bLast, 0)
-		log.Debugf("last challenge time: %s", kLastTime.Format(UTC_FORMAT))
-		zeroTime := time.Unix(0, 0)
 
-		if !kLastTime.Equal(zeroTime) && (kLastTime.Before(first) || kLastTime.Equal(first)) {
-			log.Infof("Cache is up to date")
-			return nil
-		} else {
-			log.Infof("Updating challenges for %s", address)
-		}
+		// we have some data in the bucket, so see if it out of date enough
+		if kLast != nil {
+			bLast := binary.BigEndian.Uint64(kLast)
+			kLastTime = time.Unix(int64(bLast), 0).UTC()
 
-		kFirst, _ := cursor.First()
-		bFirst, cnt := binary.Varint(kFirst)
-		if cnt < 0 {
-			return fmt.Errorf("unable to decode kFirst: %d", cnt)
-		}
+			kFirst, _ := cursor.First()
+			bFirst := binary.BigEndian.Uint64(kFirst)
+			kFirstTime = time.Unix(int64(bFirst), 0).UTC()
+			log.Debugf("Database contains challenges from %s to %s",
+				kFirstTime.Format(UTC_FORMAT), kLastTime.Format(UTC_FORMAT))
 
-		kFirstTime := time.Unix(bFirst, 0)
+			zeroTime := time.Unix(0, 0)
 
-		// see if we have everything already cached
-		if (kFirstTime.Before(first) || kFirstTime.Equal(first)) &&
-			(kLastTime.After(last) || kLastTime.Equal(last)) {
-			return nil
+			// If the DB has challenges is +/- the holddown, then we're "good enough"
+			// Note that this is the _challenge time_ not the last time we ran `refresh`
+			lastSearch := last.Add(-holddown)
+			firstSearch := first.Add(holddown)
+
+			if !kLastTime.Equal(zeroTime) && kLastTime.After(lastSearch) && kFirstTime.Before(firstSearch) {
+				log.Infof("Cache is up to date for %s", address)
+				return nil
+			} else {
+				log.Infof("Updating challenges for %s", address)
+			}
 		}
 
 		// load everything we need from the API
-		challenges, err := FetchChallenges(address, first)
+		challenges, err := FetchChallenges(address, first.Add(-holddown))
 		if err != nil {
 			return err // rollback
 		}
 
 		// Add any new records
+		cnt := 0
 		for _, challenge := range challenges {
 			t := time.Unix(challenge.Time, 0)
 
@@ -355,16 +361,18 @@ func (b *BoltDB) LoadChallenges(address string, first time.Time, last time.Time)
 					log.WithError(err).Errorf("unable to marshall json")
 					return err // rollback
 				}
-				buf := make([]byte, 8)
-				binary.PutVarint(buf, challenge.Time)
-				err = bucket.Put(buf, jdata)
+				key := make([]byte, 8)
+				binary.BigEndian.PutUint64(key, uint64(challenge.Time))
+				err = bucket.Put(key, jdata)
+				cnt += 1
 				if err != nil {
-					log.WithError(err).Errorf("Unable to put %d => %s", challenge.Time, string(jdata))
+					log.WithError(err).Errorf("Unable to put %v => %s", key, string(jdata))
+					tx.Rollback()
 					return err
 				}
 			}
 		}
-
+		log.Infof("Loaded %d challenges", cnt)
 		return nil
 	})
 	return err
@@ -373,23 +381,17 @@ func (b *BoltDB) LoadChallenges(address string, first time.Time, last time.Time)
 // returns a list of challenges for the given hotspot
 func (b *BoltDB) GetChallenges(address string, first time.Time, last time.Time) ([]Challenges, error) {
 	challenges := []Challenges{}
-	bucketName, err := challengeBucket(address)
-	if err != nil {
-		return challenges, err
-	}
 
-	err = b.db.View(func(tx *bolt.Tx) error {
-		buck := tx.Bucket(bucketName)
-		if buck == nil {
-			// bucket doesn't exist
-			return fmt.Errorf("No challenges for %s", address)
+	err := b.db.Update(func(tx *bolt.Tx) error {
+		buck, err := ChallengeBucket(tx, address)
+		if err != nil {
+			return err
 		}
-
 		cursor := buck.Cursor()
 		minKey := make([]byte, 8)
 		maxKey := make([]byte, 8)
-		binary.PutVarint(minKey, first.Unix())
-		binary.PutVarint(maxKey, first.Unix())
+		binary.BigEndian.PutUint64(minKey, uint64(first.Unix()))
+		binary.BigEndian.PutUint64(maxKey, uint64(last.Unix()))
 
 		for k, v := cursor.Seek(minKey); k != nil && bytes.Compare(k, maxKey) <= 0; k, v = cursor.Next() {
 			challenge := Challenges{}

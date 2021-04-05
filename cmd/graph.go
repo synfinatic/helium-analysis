@@ -32,6 +32,7 @@ type GraphCmd struct {
 	Last    string `kong:"name='last',short='l',default='1h',help='Age of last challenge before looking for more challenges'"`
 	Minimum int    `kong:"name='minimum',short='m',default=5,help='Minimum required challenges to generate a graph'"`
 	Json    bool   `kong:"name='json',short='j',default=false,help='Generate per-hotspot JSON files'"`
+	Buffer  int64  `kong:"name='buffer',short='b',default=6,help='Challenge buffer in hours'"`
 }
 
 func (cmd *GraphCmd) Run(ctx *RunContext) error {
@@ -46,7 +47,7 @@ func (cmd *GraphCmd) Run(ctx *RunContext) error {
 	if cli.Graph.Days < 1 {
 		return fmt.Errorf("Please specify a --days value >= 1")
 	}
-	daysOffset := time.Now().Unix() - (cli.Graph.Days * int64(24*60*60))
+	daysOffset := time.Now().UTC().Unix() - (cli.Graph.Days * int64(24*60*60))
 	days := time.Unix(daysOffset, 0)
 	// go to the beginning of the day UTC
 	startDate := days.Format("2006-01-02")
@@ -64,7 +65,8 @@ func (cmd *GraphCmd) Run(ctx *RunContext) error {
 		return err
 	}
 
-	err = ctx.BoltDB.LoadChallenges(hotspotAddress, firstTime, lastTime)
+	duration := time.Duration(time.Hour * time.Duration(cli.Graph.Buffer))
+	err = ctx.BoltDB.LoadChallenges(hotspotAddress, firstTime, lastTime, duration)
 	if err != nil {
 		log.WithError(err).Warnf("Unable to refresh challenges.  Using cache.")
 	}
@@ -102,14 +104,14 @@ func parseLastTime(last string) (time.Time, error) {
 	var t string
 	n, err := fmt.Scanf("%d%s", last, x, t)
 	if err != nil {
-		return time.Now(), fmt.Errorf("Unable to parse --last %s: %s", last, err)
+		return time.Now().UTC(), fmt.Errorf("Unable to parse --last %s: %s", last, err)
 	}
 	if n != 2 {
-		return time.Now(), fmt.Errorf("Invalid --last %s.  Must be integer followed by: d, h, m", last)
+		return time.Now().UTC(), fmt.Errorf("Invalid --last %s.  Must be integer followed by: d, h, m", last)
 	}
 
 	if x < 0 {
-		return time.Now(), fmt.Errorf("Invalid --last %s.  Must be positive integer value", last)
+		return time.Now().UTC(), fmt.Errorf("Invalid --last %s.  Must be positive integer value", last)
 	}
 
 	// convert into seconds
@@ -123,6 +125,6 @@ func parseLastTime(last string) (time.Time, error) {
 	}
 
 	// calc time offset
-	offsetSecs := time.Now().Unix() - int64(x)
+	offsetSecs := time.Now().UTC().Unix() - int64(x)
 	return time.Unix(offsetSecs, 0), nil
 }

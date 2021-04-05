@@ -106,10 +106,16 @@ func FetchChallenges(address string, start time.Time) ([]Challenges, error) {
 	cursor := "" // keep track
 	client := resty.New()
 	loadMoreRecords := true
+	attempts := 10
 
 	for loadMoreRecords {
 		chals, c, err := getChallengeResponse(client, address, cursor)
-		if err != nil {
+		if err != nil && attempts > 0 {
+			log.Errorf("Error from server.  Backing off attempt %d and trying again...", attempts)
+			attempts -= 1
+			time.Sleep(time.Duration(1500) * time.Millisecond) // back off 1.5 secs
+			continue
+		} else if err != nil {
 			return []Challenges{}, fmt.Errorf("Unable to load challenges: %s", err)
 		} else if totalChallenges == 0 && len(chals) == 0 && c == "" {
 			// sometimes we get 0 results, but a cursor for "more"
@@ -136,7 +142,7 @@ func FetchChallenges(address string, start time.Time) ([]Challenges, error) {
 			if totalChallenges%100 == 0 {
 				log.Infof("Loaded %d challenges", totalChallenges)
 			}
-			time.Sleep(time.Duration(250) * time.Millisecond) // sleep 250ms between calls
+			time.Sleep(time.Duration(750) * time.Millisecond) // sleep 750ms between calls
 		}
 	}
 

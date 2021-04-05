@@ -293,7 +293,7 @@ func printChallenges(challenges []Challenges) {
 // write the cache file
 func WriteChallenges(challenges []Challenges, filename, address string, start time.Time) error {
 	cache := ChallengeCache{
-		CacheTime:  time.Now().Unix(),
+		CacheTime:  time.Now().UTC().Unix(),
 		Address:    address,
 		StartDate:  start.Unix(),
 		Challenges: challenges,
@@ -317,7 +317,7 @@ func LoadChallenges(filename, address string, expires int64, start time.Time, fo
 	if err != nil {
 		return []Challenges{}, err
 	}
-	if !forceCache && cache.CacheTime+expires < time.Now().Unix() {
+	if !forceCache && cache.CacheTime+expires < time.Now().UTC().Unix() {
 		return []Challenges{}, fmt.Errorf("Challenge cache is old.")
 	}
 	recordTime := time.Unix(cache.StartDate, 0)

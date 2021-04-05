@@ -114,7 +114,7 @@ func LoadHotspots(filename string) (error, bool) {
 		return err, false
 	}
 
-	age := time.Now().Unix() - cache.Time
+	age := time.Now().UTC().Unix() - cache.Time
 	tooOld := false
 	if age > HOTSPOT_CACHE_TIMEOUT {
 		log.Warnf("Hotspot cache is %dhrs old.", age/60/60)
