@@ -47,8 +47,8 @@ const (
 )
 
 // Creates the PNG for the the beacons sent
-func GenerateBeaconsGraph(address string, results []Challenges) error {
-	hotspotName, err := GetHotspotName(address)
+func (b *BoltDB) GenerateBeaconsGraph(address string, results []Challenges) error {
+	hotspotName, err := b.GetHotspotName(address)
 	if err != nil {
 		return err
 	}
@@ -163,13 +163,13 @@ func GenerateBeaconsGraph(address string, results []Challenges) error {
 }
 
 // Creates the PNG for the the witnesses
-func GenerateWitnessesGraph(address string, results []Challenges) error {
-	hotspotName, err := GetHotspotName(address)
+func (b *BoltDB) GenerateWitnessesGraph(address string, results []Challenges) error {
+	hotspotName, err := b.GetHotspotName(address)
 	if err != nil {
 		return err
 	}
 	filename := fmt.Sprintf("%s:witness-distance.png", hotspotName)
-	host, err := GetHotspot(address)
+	host, err := b.GetHotspot(address)
 	if err != nil {
 		return err
 	}
@@ -185,7 +185,7 @@ func GenerateWitnessesGraph(address string, results []Challenges) error {
 		}
 		for _, witness := range *path[0].Witnesses {
 			if witness.Gateway == address {
-				otherHost, err := GetHotspot(path[0].Challengee)
+				otherHost, err := b.GetHotspot(path[0].Challengee)
 				if err != nil {
 					log.Errorf("Unable to find %s", path[0].Challengee)
 					continue
@@ -273,7 +273,7 @@ type PeerGraphSettings struct {
 }
 
 // Generate all the peer graphs for a given address
-func GeneratePeerGraphs(address string, challenges []Challenges, settings PeerGraphSettings) error {
+func (b *BoltDB) GeneratePeerGraphs(address string, challenges []Challenges, settings PeerGraphSettings) error {
 	addresses, err := GetListOfAddresses(challenges)
 	if err != nil {
 		return err
@@ -298,19 +298,22 @@ func GeneratePeerGraphs(address string, challenges []Challenges, settings PeerGr
 
 	cnt := 0
 	for _, peer := range addresses {
-		wr, err := getWitnessResults(address, peer, challenges)
+		wr, err := b.getWitnessResults(address, peer, challenges)
 		if err != nil {
 			log.WithError(err).Errorf("Unable to process: %s", peer)
+			continue
+		} else if len(wr) == 0 {
+			log.Infof("Skipping %s<->%s", address, peer)
 			continue
 		}
 
 		var join_time int64 = 0
-		host, err := GetHotspot(peer)
+		host, err := b.GetHotspot(peer)
 		if err == nil {
 			join_time, err = getTimeForHeight(host.BlockAdded, challenges)
 		}
 
-		err, generated := generatePeerGraph(address, peer, wr, settings.Min, x_min, x_max, join_time, settings.Json)
+		err, generated := b.generatePeerGraph(address, peer, wr, settings.Min, x_min, x_max, join_time, settings.Json)
 		if err != nil {
 			log.WithError(err).Errorf("Unable to generate graph")
 		}
@@ -322,17 +325,17 @@ func GeneratePeerGraphs(address string, challenges []Challenges, settings PeerGr
 }
 
 // Generate each peer graph
-func generatePeerGraph(address, witness string, results []WitnessResult, min int, x_min, x_max float64, join_time int64, generateJson bool) (error, bool) {
-	a, err := GetHotspotName(address)
+func (b *BoltDB) generatePeerGraph(address, witness string, results []WitnessResult, min int, x_min, x_max float64, join_time int64, generateJson bool) (error, bool) {
+	a, err := b.GetHotspotName(address)
 	if err != nil {
 		return err, false
 	}
-	b, err := GetHotspotName(witness)
+	w, err := b.GetHotspotName(witness)
 	if err != nil {
 		return err, false
 	}
-	filename := fmt.Sprintf("%s:%s.png", a, b)
-	jsonFilename := fmt.Sprintf("%s:%s.json", a, b)
+	filename := fmt.Sprintf("%s:%s.png", a, w)
+	jsonFilename := fmt.Sprintf("%s:%s.json", a, w)
 
 	thresholds_x := []float64{}
 	thresholds_vals := []float64{}
@@ -349,7 +352,7 @@ func generatePeerGraph(address, witness string, results []WitnessResult, min int
 
 	forceYRange := 1000.0
 	forceSNRRange := 1000.0
-	witnessName, err := GetHotspotName(witness)
+	witnessName, err := b.GetHotspotName(witness)
 	if err != nil {
 		witnessName = witness
 	}
@@ -571,10 +574,11 @@ func generatePeerGraph(address, witness string, results []WitnessResult, min int
 		)
 	}
 
-	w, _ := GetHotspot(witness)
-	s := *w.Status
+	wHotspot, _ := b.GetHotspot(witness)
+	s := *wHotspot.Status
 	status := fmt.Sprintf(" %s", s.Online)
-	title := fmt.Sprintf("%s <=> %s (%.02fkm/%.02fmi) [%.02f]%s", a, b, results[0].Km, results[0].Mi, w.RewardScale, status)
+	title := fmt.Sprintf("%s <=> %s (%.02fkm/%.02fmi) [%.02f]%s",
+		a, w, results[0].Km, results[0].Mi, wHotspot.RewardScale, status)
 	graph := chart.Chart{
 		Title: title,
 		Background: chart.Style{

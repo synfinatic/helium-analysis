@@ -48,7 +48,7 @@ func (cmd *GraphCmd) Run(ctx *RunContext) error {
 		return fmt.Errorf("Please specify a --days value >= 1")
 	}
 	daysOffset := time.Now().UTC().Unix() - (cli.Graph.Days * int64(24*60*60))
-	days := time.Unix(daysOffset, 0)
+	days := time.Unix(daysOffset, 0).UTC()
 	// go to the beginning of the day UTC
 	startDate := days.Format("2006-01-02")
 	firstTime, _ := time.Parse("2006-01-02", startDate)
@@ -58,6 +58,8 @@ func (cmd *GraphCmd) Run(ctx *RunContext) error {
 	if err != nil {
 		return err
 	}
+	log.Debugf("start: %s\t\tend: %s", firstTime.Format(analysis.UTC_FORMAT),
+		lastTime.Format(analysis.UTC_FORMAT))
 
 	// Is this a name or address of a hotspot?  Set `hotspotAddress`
 	hotspotAddress, err := ctx.BoltDB.GetHotspotByUnknown(cli.Graph.Address)
@@ -76,12 +78,12 @@ func (cmd *GraphCmd) Run(ctx *RunContext) error {
 		log.WithError(err).Panic("Unable to load challenges")
 	}
 
-	err = analysis.GenerateBeaconsGraph(hotspotAddress, challenges)
+	err = ctx.BoltDB.GenerateBeaconsGraph(hotspotAddress, challenges)
 	if err != nil {
 		log.WithError(err).Error("Unable to generate beacons graph")
 	}
 
-	err = analysis.GenerateWitnessesGraph(hotspotAddress, challenges)
+	err = ctx.BoltDB.GenerateWitnessesGraph(hotspotAddress, challenges)
 	if err != nil {
 		log.WithError(err).Error("Unable to generate witnesses graph")
 	}
@@ -91,7 +93,7 @@ func (cmd *GraphCmd) Run(ctx *RunContext) error {
 		Zoom: false,
 		Json: cli.Graph.Json,
 	}
-	err = analysis.GeneratePeerGraphs(hotspotAddress, challenges, settings)
+	err = ctx.BoltDB.GeneratePeerGraphs(hotspotAddress, challenges, settings)
 	if err != nil {
 		log.WithError(err).Error("Unable to generate peer graph(s)")
 	}
@@ -102,7 +104,8 @@ func (cmd *GraphCmd) Run(ctx *RunContext) error {
 func parseLastTime(last string) (time.Time, error) {
 	var x int
 	var t string
-	n, err := fmt.Scanf("%d%s", last, x, t)
+
+	n, err := fmt.Sscanf(last, "%d%s", &x, &t)
 	if err != nil {
 		return time.Now().UTC(), fmt.Errorf("Unable to parse --last %s: %s", last, err)
 	}

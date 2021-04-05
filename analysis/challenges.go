@@ -180,9 +180,9 @@ func getRxResults(address string, challenges []Challenges) ([]ChallengeResult, e
 	return results, nil
 }
 
-func getWitnessResults(address, witness string, challenges []Challenges) ([]WitnessResult, error) {
+func (b *BoltDB) getWitnessResults(address, witness string, challenges []Challenges) ([]WitnessResult, error) {
 	results := []WitnessResult{}
-	aHost, err := GetHotspot(address)
+	aHost, err := b.GetHotspot(address)
 	if err != nil {
 		return []WitnessResult{}, err
 	}
@@ -208,7 +208,7 @@ func getWitnessResults(address, witness string, challenges []Challenges) ([]Witn
 					continue
 				}
 
-				wHost, err := GetHotspot(witness)
+				wHost, err := b.GetHotspot(witness)
 				if err != nil {
 					log.WithError(err).Errorf("Unable to lookup: %s", witness)
 					continue
