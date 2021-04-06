@@ -33,6 +33,7 @@ type GraphCmd struct {
 	Minimum int    `kong:"name='minimum',short='m',default=5,help='Minimum required challenges to generate a graph'"`
 	Json    bool   `kong:"name='json',short='j',default=false,help='Generate per-hotspot JSON files'"`
 	Buffer  int64  `kong:"name='buffer',short='b',default=6,help='Challenge buffer in hours'"`
+	Refresh bool   `kong:"name='refresh',default=false,help='Refresh hotspot data via api.helium.io'"`
 }
 
 func (cmd *GraphCmd) Run(ctx *RunContext) error {
@@ -67,10 +68,12 @@ func (cmd *GraphCmd) Run(ctx *RunContext) error {
 		return err
 	}
 
-	duration := time.Duration(time.Hour * time.Duration(cli.Graph.Buffer))
-	err = ctx.BoltDB.LoadChallenges(hotspotAddress, firstTime, lastTime, duration)
-	if err != nil {
-		log.WithError(err).Warnf("Unable to refresh challenges.  Using cache.")
+	if cli.Graph.Refresh {
+		duration := time.Duration(time.Hour * time.Duration(cli.Graph.Buffer))
+		err = ctx.BoltDB.LoadChallenges(hotspotAddress, firstTime, lastTime, duration)
+		if err != nil {
+			log.WithError(err).Warnf("Unable to refresh challenges.  Using cache.")
+		}
 	}
 
 	challenges, err := ctx.BoltDB.GetChallenges(hotspotAddress, firstTime, lastTime)

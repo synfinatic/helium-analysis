@@ -127,8 +127,8 @@ func (b *BoltDB) GenerateBeaconsGraph(address string, results []Challenges) erro
 		invalidSma,
 	}
 	x_range := chart.ContinuousRange{
-		Max: x_data[0],
-		Min: x_data[len(x_data)-1],
+		Min: x_data[0],
+		Max: x_data[len(x_data)-1],
 	}
 	graph := chart.Chart{
 		Title:  fmt.Sprintf("Beacon Totals for %s", hotspotName),
@@ -282,16 +282,16 @@ func (b *BoltDB) GeneratePeerGraphs(address string, challenges []Challenges, set
 	x_min := 0.0
 	x_max := 0.0
 	if !settings.Zoom {
-		for i := 0; x_max == 0; i++ {
-			max, err := challenges[i].GetTimestamp()
-			if err == nil {
-				x_max = float64(max)
-			}
-		}
-		for i := len(challenges) - 1; x_min == 0; i-- {
+		for i := 0; x_min == 0; i++ {
 			min, err := challenges[i].GetTimestamp()
 			if err == nil {
 				x_min = float64(min)
+			}
+		}
+		for i := len(challenges) - 1; x_max == 0; i-- {
+			max, err := challenges[i].GetTimestamp()
+			if err == nil {
+				x_max = float64(max)
 			}
 		}
 	}
@@ -303,7 +303,9 @@ func (b *BoltDB) GeneratePeerGraphs(address string, challenges []Challenges, set
 			log.WithError(err).Errorf("Unable to process: %s", peer)
 			continue
 		} else if len(wr) == 0 {
-			log.Infof("Skipping %s<->%s", address, peer)
+			// this tends to generate a LOT of messages since the list of challenges
+			// has a lot of noise
+			log.Debugf("Skipping %s <-> %s", address, peer)
 			continue
 		}
 
@@ -402,7 +404,6 @@ func (b *BoltDB) generatePeerGraph(address, witness string, results []WitnessRes
 			XValues: tx_x,
 			YValues: tx_vals,
 		}
-
 		hidden_x, hidden_y := MergeTwoSeries(tx_x, tx_vals, tx_invalid_x, tx_invalid_vals)
 		txHiddenSeries := chart.ContinuousSeries{
 			XValues: hidden_x,

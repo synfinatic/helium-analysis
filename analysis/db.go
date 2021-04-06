@@ -372,7 +372,7 @@ func (b *BoltDB) LoadChallenges(address string, first, last time.Time, holddown 
 				}
 			}
 		}
-		log.Infof("Loaded %d challenges", cnt)
+		log.Infof("Loaded %d new challenges into database", cnt)
 		return nil
 	})
 	return err

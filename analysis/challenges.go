@@ -237,7 +237,14 @@ func (b *BoltDB) getWitnessResults(address, witness string, challenges []Challen
 			}
 		}
 	}
-	log.Debugf("found %d witness results for %s<->%s", len(results), address, witness)
+	printLog := false
+	if len(results) > 0 {
+		log.Infof("found %d witness results for %s<->%s", len(results), address, witness)
+		printLog = true
+	}
+	if len(results) == 0 || !printLog {
+		log.Debugf("found %d witness results for %s<->%s", len(results), address, witness)
+	}
 	return results, nil
 }
 

@@ -36,8 +36,8 @@ func MergeTwoSeries(ax, ay, bx, by []float64) ([]float64, []float64) {
 
 	j := 0
 	for i := 0; i < alen; {
-		// Must use 'a > b' because our data is in reverse!
-		if j == blen || ax[i] > bx[j] {
+		// Must use 'a < b' because our data is in order!
+		if j == blen || ax[i] < bx[j] {
 			newx = append(newx, ax[i])
 			newy = append(newy, ay[i])
 			i += 1

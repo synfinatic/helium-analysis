@@ -112,6 +112,7 @@ func FetchChallenges(address string, start time.Time) ([]Challenges, error) {
 		chals, c, err := getChallengeResponse(client, address, cursor)
 		if err != nil && attempts > 0 {
 			log.Errorf("Error from server.  Backing off attempt %d and trying again...", attempts)
+			log.Debugf("%s", err)
 			attempts -= 1
 			time.Sleep(time.Duration(1500) * time.Millisecond) // back off 1.5 secs
 			continue
