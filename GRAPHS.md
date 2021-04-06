@@ -22,7 +22,7 @@ to be easier to understand.
 This graph shows 30 days worth of witnesses for `fantastic-fiery-scallop`.
 Witness are when other hotspots see your beacon.  Each green dot represents
 a valid witness, while red invalid.  The X Axis represents time and the Y
-Axis signal strength.
+Axis is the distance of the other hotspot.
 
 ![](https://user-images.githubusercontent.com/1075352/113659402-cb792480-9656-11eb-8f6c-3508c0a72275.png)
 

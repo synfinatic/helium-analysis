@@ -19,10 +19,7 @@ package analysis
  */
 
 import (
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
-	"time"
 
 	"github.com/go-resty/resty/v2"
 	log "github.com/sirupsen/logrus"
@@ -100,31 +97,4 @@ func GetHotspotAddress(name string) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("Unable to find %s in hotspot cache", name)
-}
-
-// Loads our hotspots from the cachefile returns true if should be refreshed
-func LoadHotspots(filename string) (error, bool) {
-	file, err := ioutil.ReadFile(filename)
-	if err != nil {
-		return err, false
-	}
-	cache := HotspotCache{}
-	err = json.Unmarshal(file, &cache)
-	if err != nil {
-		return err, false
-	}
-
-	age := time.Now().UTC().Unix() - cache.Time
-	tooOld := false
-	if age > HOTSPOT_CACHE_TIMEOUT {
-		log.Warnf("Hotspot cache is %dhrs old.", age/60/60)
-		tooOld = true
-	}
-
-	for _, v := range cache.Hotspots {
-		HOTSPOT_CACHE[v.Address] = v
-	}
-	log.Debugf("Loaded hotspot cache")
-	return nil, tooOld
-
 }

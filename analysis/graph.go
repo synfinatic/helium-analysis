@@ -147,6 +147,9 @@ func (b *BoltDB) GenerateBeaconsGraph(address string, results []Challenges) erro
 			ValueFormatter: XValueFormatterUnix,
 			Range:          &x_range,
 		},
+		YAxis: chart.YAxis{
+			Name: "total witnesses",
+		},
 	}
 
 	graph.Elements = []chart.Renderable{

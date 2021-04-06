@@ -7,10 +7,10 @@ antenna and location by exmaining your PoC signals (beacons & witnesses).
 
 Creates pretty graphs of PoC hotspot activity.   Here are a few examples:
 
-Beacon totals:
+Beacon total witness count over time:
 ![](https://user-images.githubusercontent.com/1075352/113659393-c6b47080-9656-11eb-832b-8499199c5342.png)
 
-Witness report showing valid/invalid and signal strength:
+Witness report showing valid/invalid and based on distance:
 ![](https://user-images.githubusercontent.com/1075352/113659402-cb792480-9656-11eb-8f6c-3508c0a72275.png)
 
 Drill down graph for two hotspots talking to each other:

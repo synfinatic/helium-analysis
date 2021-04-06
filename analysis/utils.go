@@ -115,10 +115,12 @@ func maxRssi(km float64) float64 {
 	if km < 0.001 {
 		return -1000.0
 	}
+
+	// note hard coded 1.8dB antenna gain is how Helium calculates things, but
+	// is a horrible hack
 	return 28.0 + 1.8*2 - (20.0 * math.Log10(km)) - (20.0 * math.Log10(915.0)) - 32.44
 }
 
-// Not sure why it is a list of values at the end???
 // Table is map[SNR] = minimum valid RSSI
 // Stolen from: https://github.com/Carniverous19/helium_analysis_tools.git
 var SnrTable = map[int]int{

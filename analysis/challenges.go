@@ -19,9 +19,7 @@ package analysis
  */
 
 import (
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"math"
 	"time"
 
@@ -295,59 +293,6 @@ func getSignalsSeriesChallenge(address string, results []ChallengeResult) ([]flo
 // generates a ton of output
 func printChallenges(challenges []Challenges) {
 	fmt.Printf(spew.Sdump(challenges))
-}
-
-// write the cache file
-func WriteChallenges(challenges []Challenges, filename, address string, start time.Time) error {
-	cache := ChallengeCache{
-		CacheTime:  time.Now().UTC().Unix(),
-		Address:    address,
-		StartDate:  start.Unix(),
-		Challenges: challenges,
-	}
-	b, err := json.MarshalIndent(cache, "", "  ")
-	if err != nil {
-		return err
-	}
-	return ioutil.WriteFile(filename, b, 0644)
-}
-
-// read the cache file
-func LoadChallenges(filename, address string, expires int64, start time.Time, forceCache bool) ([]Challenges, error) {
-	cache := ChallengeCache{}
-	bytes, err := ioutil.ReadFile(filename)
-	if err != nil {
-		return []Challenges{}, err
-	}
-	err = json.Unmarshal(bytes, &cache)
-
-	if err != nil {
-		return []Challenges{}, err
-	}
-	if !forceCache && cache.CacheTime+expires < time.Now().UTC().Unix() {
-		return []Challenges{}, fmt.Errorf("Challenge cache is old.")
-	}
-	recordTime := time.Unix(cache.StartDate, 0)
-	if start.Before(recordTime) {
-		return []Challenges{}, fmt.Errorf("Challenge cache wrong amount of time.")
-	}
-	if cache.Address != address {
-		return []Challenges{}, fmt.Errorf("Challenge cache is for different hotspot.")
-	}
-
-	// need to remove any records older than start time
-	challenges := []Challenges{}
-	for _, c := range cache.Challenges {
-		recordTime, err = c.GetTime()
-		if err != nil {
-			return []Challenges{}, err
-		}
-		if start.Before(recordTime) {
-			challenges = append(challenges, c)
-		}
-	}
-
-	return challenges, nil
 }
 
 // returns the highest nanosec block time less than or equal to the given height
