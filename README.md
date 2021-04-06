@@ -1,34 +1,22 @@
 # Helium Analysis
 
 Some simple tools for optmizing your [Helium](https://www.helium.com) hotspot
-antenna and location.
+antenna and location by exmaining your PoC signals (beacons & witnesses).
 
 ## What?
 
-Creates pretty graphs of PoC hotspot activity.  All the examples below
-use the default 500 challenges worth of analysis.
+Creates pretty graphs of PoC hotspot activity.   Here are a few examples:
 
-Good example of two nodes talking to each other very consistently:
-![](https://user-images.githubusercontent.com/1075352/112706374-f72f2a00-8e60-11eb-902e-cda4a2f7a4c5.png)
+Beacon totals:
+![](https://user-images.githubusercontent.com/1075352/113659393-c6b47080-9656-11eb-832b-8499199c5342.png)
 
-Notice the empty space on the right hand side indicating they haven't witnessed
-each other for a few days.  Dots show actual PoC messages (both RX and TX
-where appropriate) while the lines show the trailing average.
-![](https://user-images.githubusercontent.com/1075352/112706137-7a4f8080-8e5f-11eb-9ef2-4dca63fccd6c.png)
+Witness report showing valid/invalid and signal strength:
+![](https://user-images.githubusercontent.com/1075352/113659402-cb792480-9656-11eb-8f6c-3508c0a72275.png)
 
-Here is a graph showing more data points, including some invalid PoC witnesses.
-![](https://user-images.githubusercontent.com/1075352/112706128-6ad03780-8e5f-11eb-943a-33b8ed942ecb.png)
+Drill down graph for two hotspots talking to each other:
+![](https://user-images.githubusercontent.com/1075352/113659861-d1233a00-9657-11eb-9409-70af2c7d9d7b.png)
 
-Something clearly changed and better signal strength!
-![](https://user-images.githubusercontent.com/1075352/112737511-4edc9c80-8f18-11eb-9327-96f420610b27.png)
-
-Joined marker indicates when atomic-blood-woodpecker was added to the blockchain.
-![](https://user-images.githubusercontent.com/1075352/112768602-9d01a680-8fd1-11eb-95f4-69e1481c4a70.png)
-
-## Invalid?
-
-Yes, if your signal strength is in the red, then it is considered invalid:
-![](https://user-images.githubusercontent.com/1075352/112706552-2db97480-8e62-11eb-88d9-75b61af09279.png)
+[Detailed graph information](GRAPHS.md).
 
 ## Installation
 
@@ -44,26 +32,34 @@ To build the binary:
 
 ## Running
 
-From a terminal, execute: `./helium-analysis --address XXXXXX` where XXXXXX
-is the hotspot address you wish to analyze.  Optionally, you can use
-`--name` to specify the hotspot name to analyze.  This will generate a PNG file
-for each hotspot you witness and/or witnessed you.
+helium-analysis has built in help for commands via the `-h` flag.  For the
+most up-to-date information on how to use helium-analysis run 
+`./helium-analysis -h`.
 
-Note that there is no GUI/WebUI at this time.
+#### Commands
 
-## Flags
+ * `graph` - Generate graphs for a hotspot
+ * `hotspots` - Manage the hotspot cache
+ * `challenges` - Manage the challenge data for hotspots
+ * `names` - Show hotspot name to address mappings
+ * `version` - Display version information 
 
- * `--address X` - Specify the hotspot address to analyze
- * `--name X` - Specify the hotspot name to analyze
- * `--min X` - Set the minimum of data points required to generate a graph  (deafult 5)
- * `--days X` - Set the number of days to process (default 30)
- * `--no-cache` - Disable caching of challenges
- * `--force-cache` - Force using of local cache to avoid hitting api.helium.io
- * `--cache X` - Use alternate name for hotspot cache file (default is _the-hotspot-name_.json)
- * `--expires X` - Refresh challenges if more than X hours old (default 1hr)
- * `--json` - Dump JSON files for each hotspot
- * `--version` - Print out the version information
+#### Overview
 
+helium-analysis uses a database (default file is `helium.db`) to store all of
+hotspot and challenge data necessary to generate the graphs.  To avoid over-loading
+the Helium API servers, graphs are generated only using the data stored in the
+database.  In order to populate the database you should run:
+
+ 1. `helium-analysis hotspots refresh`  -- Load the metadata for all of the Helium 
+        hotspots.
+ 1. `helium-analysis challenges refresh <address>` -- Load the challenges
+        for a given hotspot. Warning: this can take 10 or more minutes!  Do not 
+        interrupt the process or all downloaded data will be lost.
+ 1. `helium-analysis graph <address>` -- Generate graphs for the specified hotspot.
+
+Note that you can specify the hotspot name OR address for the challenges and graph 
+commands, but the address is recommended to avoid issues with name collisions.
 ## Donate
 
 If you find this useful, feel free to throw a few HNT my way: `144xaKFbp4arCNWztcDbB8DgWJFCZxc8AtAKuZHZ6Ejew44wL8z`
