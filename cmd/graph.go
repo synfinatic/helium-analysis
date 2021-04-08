@@ -20,6 +20,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -27,13 +28,13 @@ import (
 )
 
 type GraphCmd struct {
-	Address string `kong:"arg,required,name='address',help='Hotspot address or name to report on'"`
-	Days    int64  `kong:"name='days',short='d',default=30,help='Previous number of days to report on'"`
-	Last    string `kong:"name='last',short='l',default='1h',help='Age of last challenge before looking for more challenges'"`
-	Minimum int    `kong:"name='minimum',short='m',default=5,help='Minimum required challenges to generate a graph'"`
-	Json    bool   `kong:"name='json',short='j',default=false,help='Generate per-hotspot JSON files'"`
-	Buffer  int64  `kong:"name='buffer',short='b',default=6,help='Challenge buffer in hours'"`
-	Refresh bool   `kong:"name='refresh',default=false,help='Refresh hotspot data via api.helium.io'"`
+	Address     string `kong:"arg,required,name='address',help='Hotspot address or name to report on'"`
+	Days        int64  `kong:"name='days',short='d',default=30,help='Previous number of days to report on'"`
+	Last        string `kong:"name='last',short='l',default='1h',help='Age of last challenge before looking for more challenges'"`
+	Minimum     int    `kong:"name='minimum',short='m',default=5,help='Minimum required challenges to generate a graph'"`
+	Json        bool   `kong:"name='json',short='j',default=false,help='Generate per-hotspot JSON files'"`
+	Buffer      int64  `kong:"name='buffer',short='b',default=6,help='Challenge buffer in hours'"`
+	SkipRefresh bool   `kong:"name='skip-refresh',default=false,help='Skip refresh of hotspot data via api.helium.io'"`
 }
 
 func (cmd *GraphCmd) Run(ctx *RunContext) error {
@@ -68,7 +69,17 @@ func (cmd *GraphCmd) Run(ctx *RunContext) error {
 		return err
 	}
 
-	if cli.Graph.Refresh {
+	name, err := ctx.BoltDB.GetHotspotName(hotspotAddress)
+	if err != nil {
+		return err
+	}
+
+	err = makeDirectory(name)
+	if err != nil {
+		return err
+	}
+
+	if !cli.Graph.SkipRefresh {
 		duration := time.Duration(time.Hour * time.Duration(cli.Graph.Buffer))
 		err = ctx.BoltDB.LoadChallenges(hotspotAddress, firstTime, lastTime, duration)
 		if err != nil {
@@ -81,21 +92,22 @@ func (cmd *GraphCmd) Run(ctx *RunContext) error {
 		log.WithError(err).Panic("Unable to load challenges")
 	}
 
-	err = ctx.BoltDB.GenerateBeaconsGraph(hotspotAddress, challenges)
-	if err != nil {
-		log.WithError(err).Error("Unable to generate beacons graph")
-	}
-
-	err = ctx.BoltDB.GenerateWitnessesGraph(hotspotAddress, challenges)
-	if err != nil {
-		log.WithError(err).Error("Unable to generate witnesses graph")
-	}
-
-	settings := analysis.PeerGraphSettings{
+	settings := analysis.GraphSettings{
 		Min:  cli.Graph.Minimum,
 		Zoom: false,
 		Json: cli.Graph.Json,
 	}
+
+	err = ctx.BoltDB.GenerateBeaconsGraph(hotspotAddress, challenges, settings)
+	if err != nil {
+		log.WithError(err).Error("Unable to generate beacons graph")
+	}
+
+	err = ctx.BoltDB.GenerateWitnessesGraph(hotspotAddress, challenges, settings)
+	if err != nil {
+		log.WithError(err).Error("Unable to generate witnesses graph")
+	}
+
 	err = ctx.BoltDB.GeneratePeerGraphs(hotspotAddress, challenges, settings)
 	if err != nil {
 		log.WithError(err).Error("Unable to generate peer graph(s)")
@@ -133,4 +145,16 @@ func parseLastTime(last string) (time.Time, error) {
 	// calc time offset
 	offsetSecs := time.Now().UTC().Unix() - int64(x)
 	return time.Unix(offsetSecs, 0), nil
+}
+
+// Make the directory for the given address
+func makeDirectory(name string) error {
+	var err error = nil
+	stat, err := os.Stat(name)
+	if os.IsNotExist(err) {
+		err = os.Mkdir(name, 0755)
+	} else if !stat.IsDir() {
+		err = fmt.Errorf("%s already exists and is not a directory", name)
+	}
+	return err
 }

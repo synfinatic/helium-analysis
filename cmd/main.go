@@ -80,7 +80,7 @@ func main() {
 
 	db, err := analysis.OpenDB(cli.Database, cli.InitDb)
 	if err != nil {
-		log.Fatalf("Error opening database: %s", err.Error())
+		log.WithError(err).Fatalf("Error opening database.  Another process has it locked?")
 	}
 	defer db.Close()
 	run_ctx := RunContext{

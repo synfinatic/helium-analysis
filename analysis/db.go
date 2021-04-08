@@ -318,6 +318,8 @@ func (b *BoltDB) LoadChallenges(address string, first, last time.Time, holddown 
 		// lookup first and last time in DB
 		kLast, _ := cursor.Last()
 
+		loadUntil := time.Unix(0, 0)
+
 		// we have some data in the bucket, so see if it out of date enough
 		if kLast != nil {
 			bLast := binary.BigEndian.Uint64(kLast)
@@ -329,23 +331,35 @@ func (b *BoltDB) LoadChallenges(address string, first, last time.Time, holddown 
 			log.Debugf("Database contains challenges from %s to %s",
 				kFirstTime.Format(UTC_FORMAT), kLastTime.Format(UTC_FORMAT))
 
-			zeroTime := time.Unix(0, 0)
-
 			// If the DB has challenges is +/- the holddown, then we're "good enough"
 			// Note that this is the _challenge time_ not the last time we ran `refresh`
 			lastSearch := last.Add(-holddown)
 			firstSearch := first.Add(holddown)
 
-			if !kLastTime.Equal(zeroTime) && kLastTime.After(lastSearch) && kFirstTime.Before(firstSearch) {
+			if kLastTime.Equal(time.Unix(0, 0)) {
+				loadUntil = first.Add(holddown)
+				log.Infof("No entries in database... refreshing %s.", address)
+			} else if kFirstTime.After(firstSearch) {
+				loadUntil = first.Add(holddown)
+				t := firstSearch.Format(UTC_FORMAT)
+				log.Infof("First database record is after %s... refreshing %s.", t, address)
+			} else if kLastTime.Before(lastSearch) {
+				loadUntil = lastSearch
+				t := lastSearch.Format(UTC_FORMAT)
+				log.Infof("Last database record is before %s... refreshing %s.", t, address)
+			}
+
+			if loadUntil.Equal(time.Unix(0, 0)) {
 				log.Infof("Cache is up to date for %s", address)
 				return nil
-			} else {
-				log.Infof("Updating challenges for %s", address)
 			}
+		} else {
+			// load all the data for the graph
+			loadUntil = first.Add(-holddown)
 		}
 
 		// load everything we need from the API
-		challenges, err := FetchChallenges(address, first.Add(-holddown))
+		challenges, err := FetchChallenges(address, loadUntil)
 		if err != nil {
 			return err // rollback
 		}

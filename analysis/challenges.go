@@ -147,7 +147,7 @@ func getTxResults(address string, challenges []Challenges) ([]ChallengeResult, e
 			}
 		}
 	}
-	log.Debugf("found %d Tx results for %s", len(results), address)
+	log.Debugf("Found %d Tx results for %s", len(results), address)
 	return results, nil
 }
 
@@ -174,7 +174,7 @@ func getRxResults(address string, challenges []Challenges) ([]ChallengeResult, e
 			}
 		}
 	}
-	log.Debugf("found %d Rx results for %s", len(results), address)
+	log.Debugf("Found %d Rx results for %s", len(results), address)
 	return results, nil
 }
 
@@ -235,14 +235,7 @@ func (b *BoltDB) getWitnessResults(address, witness string, challenges []Challen
 			}
 		}
 	}
-	printLog := false
-	if len(results) > 0 {
-		log.Infof("found %d witness results for %s<->%s", len(results), address, witness)
-		printLog = true
-	}
-	if len(results) == 0 || !printLog {
-		log.Debugf("found %d witness results for %s<->%s", len(results), address, witness)
-	}
+	log.Debugf("Found %d witness results for %s<->%s", len(results), address, witness)
 	return results, nil
 }
 

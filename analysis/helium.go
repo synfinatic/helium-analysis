@@ -142,6 +142,12 @@ func FetchChallenges(address string, start time.Time) ([]Challenges, error) {
 			totalChallenges += 1
 			if totalChallenges%100 == 0 {
 				log.Infof("Loaded %d challenges", totalChallenges)
+				t, err := chals[i].GetTime()
+				if err != nil {
+					log.WithError(err).Errorf("Unable to determine time")
+				} else {
+					log.Infof("Last challenge time: %s", t.Format(UTC_FORMAT))
+				}
 			}
 			time.Sleep(time.Duration(750) * time.Millisecond) // sleep 750ms between calls
 		}
