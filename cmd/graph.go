@@ -57,10 +57,11 @@ func (cmd *GraphCmd) Run(ctx *RunContext) error {
 
 	// validate --last and set `lastTime`
 	lastTime, err := parseLastTime(cli.Graph.Last)
+	lastTime = lastTime.UTC()
 	if err != nil {
 		return err
 	}
-	log.Debugf("start: %s\t\tend: %s", firstTime.Format(analysis.UTC_FORMAT),
+	log.Debugf("Graph range: %s => %s", firstTime.Format(analysis.UTC_FORMAT),
 		lastTime.Format(analysis.UTC_FORMAT))
 
 	// Is this a name or address of a hotspot?  Set `hotspotAddress`

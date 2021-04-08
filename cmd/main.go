@@ -47,6 +47,7 @@ type RunContext struct {
 type CLI struct {
 	// Common Arguments
 	LogLevel string `kong:"optional,short='L',name='loglevel',default='info',enum='error,warn,info,debug',help='Logging level [error|warn|info|debug]'"`
+	Lines    bool   `kong:"optional,name='lines',default=false,help='Include line numbers in logs'"`
 	Database string `kong:"optional,short='D',name='database',default='helium.db',help='Database file'"`
 	InitDb   bool   `kong:"name='init-db',help='Initialize a new database'"`
 
@@ -66,7 +67,6 @@ func main() {
 	switch cli.LogLevel {
 	case "debug":
 		log.SetLevel(log.DebugLevel)
-		log.SetReportCaller(true)
 	case "info":
 		log.SetLevel(log.InfoLevel)
 		log.SetOutput(colorable.NewColorableStdout())
@@ -76,6 +76,9 @@ func main() {
 	case "error":
 		log.SetLevel(log.ErrorLevel)
 		log.SetOutput(colorable.NewColorableStdout())
+	}
+	if cli.Lines {
+		log.SetReportCaller(true)
 	}
 
 	db, err := analysis.OpenDB(cli.Database, cli.InitDb)

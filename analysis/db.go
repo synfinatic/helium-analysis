@@ -36,6 +36,9 @@ var HOTSPOTS_BUCKET []byte = []byte("hotspots")
 var HOTSPOT_NAMES_BUCKET []byte = []byte("hotspot_names")
 var CHALLENGES_BUCKET []byte = []byte("challenges")
 var HOTSPOTS_CACHE_KEY []byte = []byte("hotspotcache")
+var META_BUCKET []byte = []byte("metadata")
+var VERSION_KEY []byte = []byte("version")
+var DB_VERSION []byte = []byte("v1")
 
 const UTC_FORMAT = "2006-01-02 15:04:05 MST"
 
@@ -80,6 +83,20 @@ func OpenDB(filename string, init bool) (*BoltDB, error) {
 		_, err = tx.CreateBucketIfNotExists(CHALLENGES_BUCKET)
 		if err != nil {
 			return fmt.Errorf("Uanble to create bucket: %s", string(CHALLENGES_BUCKET))
+		}
+
+		meta, err := tx.CreateBucketIfNotExists(META_BUCKET)
+		if err != nil {
+			return fmt.Errorf("Uanble to create bucket: %s", string(META_BUCKET))
+		}
+
+		version := meta.Get(VERSION_KEY)
+		if version == nil {
+			// set version 1
+			meta.Put(VERSION_KEY, DB_VERSION)
+		} else if bytes.Compare(DB_VERSION, version) != 0 {
+			log.Panicf("Database version miss-match. Expected %s, but is %s",
+				string(DB_VERSION), string(version))
 		}
 
 		return nil
@@ -303,8 +320,6 @@ func ChallengeBucket(tx *bolt.Tx, address string) (*bolt.Bucket, error) {
 
 // Load all the challenges as old as first if last <= time.UTC()
 func (b *BoltDB) LoadChallenges(address string, first, last time.Time, holddown time.Duration) error {
-	log.Debugf("Loading %s => %s", first.Format(UTC_FORMAT), last.Format(UTC_FORMAT))
-
 	err := b.db.Update(func(tx *bolt.Tx) error {
 		// create a bucket for the challenges of our hotspot
 		bucket, err := ChallengeBucket(tx, address)
@@ -328,7 +343,7 @@ func (b *BoltDB) LoadChallenges(address string, first, last time.Time, holddown 
 			kFirst, _ := cursor.First()
 			bFirst := binary.BigEndian.Uint64(kFirst)
 			kFirstTime = time.Unix(int64(bFirst), 0).UTC()
-			log.Debugf("Database contains challenges from %s to %s",
+			log.Debugf("Database challenges: %s => %s",
 				kFirstTime.Format(UTC_FORMAT), kLastTime.Format(UTC_FORMAT))
 
 			// If the DB has challenges is +/- the holddown, then we're "good enough"
@@ -338,15 +353,15 @@ func (b *BoltDB) LoadChallenges(address string, first, last time.Time, holddown 
 
 			if kLastTime.Equal(time.Unix(0, 0)) {
 				loadUntil = first.Add(holddown)
-				log.Infof("No entries in database... refreshing %s.", address)
+				log.Infof("No entries in database....")
 			} else if kFirstTime.After(firstSearch) {
-				loadUntil = first.Add(holddown)
+				loadUntil = first.Add(-holddown)
 				t := firstSearch.Format(UTC_FORMAT)
-				log.Infof("First database record is after %s... refreshing %s.", t, address)
+				log.Infof("First database record is after %s", t)
 			} else if kLastTime.Before(lastSearch) {
 				loadUntil = lastSearch
 				t := lastSearch.Format(UTC_FORMAT)
-				log.Infof("Last database record is before %s... refreshing %s.", t, address)
+				log.Infof("Last database record is before %s", t)
 			}
 
 			if loadUntil.Equal(time.Unix(0, 0)) {
@@ -357,6 +372,7 @@ func (b *BoltDB) LoadChallenges(address string, first, last time.Time, holddown 
 			// load all the data for the graph
 			loadUntil = first.Add(-holddown)
 		}
+		log.Debugf("Loading challenges until: %s", loadUntil.Format(UTC_FORMAT))
 
 		// load everything we need from the API
 		challenges, err := FetchChallenges(address, loadUntil)
