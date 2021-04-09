@@ -1,5 +1,10 @@
 # Helium Analysis Changelog
 
+## Unreleased
+
+- Always generate JSON files for beacons & witnesses
+- Becaon & Witness JSON files now are limited to the data being graphed
+
 ## v0.9.0 - 2021-04-08
 
 - Complete CLI revamp

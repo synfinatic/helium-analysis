@@ -19,7 +19,9 @@ package analysis
  */
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"os"
 
 	"github.com/wcharczuk/go-chart/v2"
@@ -57,10 +59,12 @@ func (b *BoltDB) GenerateBeaconsGraph(address string, results []Challenges, sett
 		return err
 	}
 	filename := fmt.Sprintf("%s/beacon-totals.png", hotspotName)
+	jsonFilename := fmt.Sprintf("%s/beacon-totals.json", hotspotName)
 
 	x_data := []float64{}
 	valid_data := []float64{}
 	invalid_data := []float64{}
+	matchChallenges := []Challenges{}
 	for _, challenge := range results {
 		path := *challenge.Path
 		if path[0].Challengee != address { // find only our beacons
@@ -77,6 +81,7 @@ func (b *BoltDB) GenerateBeaconsGraph(address string, results []Challenges, sett
 			} else {
 				invalid += 1
 			}
+			matchChallenges = append(matchChallenges, challenge)
 		}
 		if valid == 0 && invalid == 0 {
 			continue
@@ -84,6 +89,15 @@ func (b *BoltDB) GenerateBeaconsGraph(address string, results []Challenges, sett
 		valid_data = append(valid_data, float64(valid))
 		invalid_data = append(invalid_data, float64(invalid))
 		x_data = append(x_data, float64(challenge.Time))
+	}
+
+	if settings.Json {
+		jdata, err := json.MarshalIndent(matchChallenges, "", "  ")
+		if err != nil {
+			log.WithError(err).Errorf("Unable to generate %s", jsonFilename)
+		} else {
+			ioutil.WriteFile(jsonFilename, jdata, 0644)
+		}
 	}
 
 	if len(x_data) < settings.Min {
@@ -180,6 +194,7 @@ func (b *BoltDB) GenerateWitnessesGraph(address string, results []Challenges, se
 		return err
 	}
 	filename := fmt.Sprintf("%s/witness-distance.png", hotspotName)
+	jsonFilename := fmt.Sprintf("%s/witness-distance.json", hotspotName)
 	host, err := b.GetHotspot(address)
 	if err != nil {
 		return err
@@ -189,6 +204,7 @@ func (b *BoltDB) GenerateWitnessesGraph(address string, results []Challenges, se
 	x_invalid := []float64{}
 	valid_data := []float64{}
 	invalid_data := []float64{}
+	matchChallenges := []Challenges{}
 	for _, challenge := range results {
 		path := *challenge.Path
 		if path[0].Challengee == address {
@@ -205,13 +221,24 @@ func (b *BoltDB) GenerateWitnessesGraph(address string, results []Challenges, se
 				if witness.IsValid {
 					valid_data = append(valid_data, float64(km))
 					x_valid = append(x_valid, float64(challenge.Time))
+					matchChallenges = append(matchChallenges, challenge)
 					break
 				} else {
 					invalid_data = append(invalid_data, float64(km))
 					x_invalid = append(x_invalid, float64(challenge.Time))
+					matchChallenges = append(matchChallenges, challenge)
 					break
 				}
 			}
+		}
+	}
+
+	if settings.Json {
+		jdata, err := json.MarshalIndent(matchChallenges, "", "  ")
+		if err != nil {
+			log.WithError(err).Errorf("Unable to generate %s", jsonFilename)
+		} else {
+			ioutil.WriteFile(jsonFilename, jdata, 0644)
 		}
 	}
 
