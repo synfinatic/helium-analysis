@@ -146,6 +146,26 @@ func (b *BoltDB) GetHotspotsCacheHeight() (int64, error) {
 	return val, err
 }
 
+func (b *BoltDB) AutoRefreshHotspots(limit int64) error {
+	height, err := GetCurrentHeight()
+	if err != nil {
+		return err
+	}
+	ourHeight, err := b.GetHotspotsCacheHeight()
+	if err != nil {
+		return err
+	}
+	if (height - ourHeight) > limit {
+		log.Infof("Hotspot data is %d blocks old.  Refreshing...", (height - ourHeight))
+		hotspots, err := FetchHotspots()
+		if err != nil {
+			return err
+		}
+		err = b.SetHotspots(hotspots)
+	}
+	return err
+}
+
 // Get all the hotspots in the DB
 func (b *BoltDB) GetHotspots() ([]Hotspot, error) {
 	hotspots := []Hotspot{}

@@ -27,6 +27,10 @@ import (
 	"github.com/synfinatic/helium-analysis/analysis"
 )
 
+const (
+	HOTSPOT_REFRESH = 1000 // height delta to do a hotspot cache refresh
+)
+
 type GraphCmd struct {
 	Address     string `kong:"arg,required,name='address',help='Hotspot address or name to report on'"`
 	Days        int64  `kong:"name='days',short='d',default=30,help='Previous number of days to report on'"`
@@ -34,7 +38,7 @@ type GraphCmd struct {
 	Minimum     int    `kong:"name='minimum',short='m',default=5,help='Minimum required challenges to generate a graph'"`
 	Json        bool   `kong:"name='json',short='j',default=false,help='Generate per-hotspot JSON files'"`
 	Buffer      int64  `kong:"name='buffer',short='b',default=6,help='Challenge buffer in hours'"`
-	SkipRefresh bool   `kong:"name='skip-refresh',default=false,help='Skip refresh of hotspot data via api.helium.io'"`
+	SkipRefresh bool   `kong:"name='skip-refresh',short='s',default=false,help='Skip refresh of challenge and hotspot data'"`
 }
 
 func (cmd *GraphCmd) Run(ctx *RunContext) error {
@@ -81,6 +85,11 @@ func (cmd *GraphCmd) Run(ctx *RunContext) error {
 	}
 
 	if !cli.Graph.SkipRefresh {
+		err = ctx.BoltDB.AutoRefreshHotspots(HOTSPOT_REFRESH)
+		if err != nil {
+			log.WithError(err).Warnf("Unable to refresh hotspot data.  Using cache.")
+		}
+
 		duration := time.Duration(time.Hour * time.Duration(cli.Graph.Buffer))
 		err = ctx.BoltDB.LoadChallenges(hotspotAddress, firstTime, lastTime, duration)
 		if err != nil {

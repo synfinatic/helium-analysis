@@ -69,7 +69,7 @@ func GetCurrentHeight() (int64, error) {
 	return 0, fmt.Errorf("Missing height in API reponse")
 }
 
-// Download hotspot data from helium.api servers and saves to filename
+// Download hotspot data from helium.api servers
 func FetchHotspots() ([]Hotspot, error) {
 	hotspots := []Hotspot{}
 	cursor := "" // keep track
