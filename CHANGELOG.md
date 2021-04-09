@@ -1,5 +1,14 @@
 # Helium Analysis Changelog
 
+## v0.9.0 - 2021-04-08
+
+- Complete CLI revamp
+- Switch to using an embedded database (single file) instead of JSON files
+- Graphs are now placed in a directory named after the hotspot name
+- Update README with new versions of the graphs
+- Add GRAPHS.md
+- Various tweaks to the graphs
+
 ## v0.8.0 - 2021-04-01
 
 - Add online status & reward scale of remote node
