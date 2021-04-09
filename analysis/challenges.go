@@ -19,14 +19,11 @@ package analysis
  */
 
 import (
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"math"
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/go-resty/resty/v2"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -127,81 +124,6 @@ type WitnessResult struct {
 
 const CHALLENGE_URL = "https://api.helium.io/v1/hotspots/%s/challenges"
 
-// Returns a list of Challenges and the cursor location or an error
-func getChallengeResponse(client *resty.Client, address string, cursor string) ([]Challenges, string, error) {
-	var resp *resty.Response
-	var err error
-
-	if cursor == "" {
-		resp, err = client.R().
-			SetHeader("Accept", "application/json").
-			SetResult(&ChallengeResponse{}).
-			Get(fmt.Sprintf(CHALLENGE_URL, address))
-	} else {
-		resp, err = client.R().
-			SetHeader("Accept", "application/json").
-			SetResult(&ChallengeResponse{}).
-			SetQueryParams(map[string]string{
-				"cursor": cursor,
-			}).
-			Get(fmt.Sprintf(CHALLENGE_URL, address))
-	}
-	if err != nil {
-		return []Challenges{}, "", err
-	}
-	if resp.IsError() {
-		return []Challenges{}, "", fmt.Errorf("Error %d: %s", resp.StatusCode(), resp.String())
-	}
-	result := (resp.Result().(*ChallengeResponse))
-
-	return result.Data, result.Cursor, nil
-}
-
-// Download all the challenges from the API
-func FetchChallenges(address string, start time.Time) ([]Challenges, error) {
-	challenges := []Challenges{}
-	totalChallenges := 0
-	cursor := "" // keep track
-	client := resty.New()
-	loadMoreRecords := true
-
-	for loadMoreRecords {
-		chals, c, err := getChallengeResponse(client, address, cursor)
-		if err != nil {
-			return []Challenges{}, fmt.Errorf("Unable to load challenges: %s", err)
-		} else if totalChallenges == 0 && len(chals) == 0 && c == "" {
-			// sometimes we get 0 results, but a cursor for "more"
-			return []Challenges{}, fmt.Errorf("0 challenges fetched for %s.  Invalid address?", address)
-		} else if len(chals) == 0 && c == "" {
-			log.Warnf("Only able to retrieve %d challenges", totalChallenges)
-			return challenges, nil
-		}
-
-		log.Debugf("Retrieved %d challenges", len(chals))
-		cursor = c // keep track of the cursor for next time
-
-		for i := 0; i < len(chals); i++ {
-			challengeTime, err := chals[i].GetTime()
-			if err != nil {
-				return []Challenges{}, err
-			}
-			if challengeTime.Before(start) {
-				loadMoreRecords = false
-				break
-			}
-
-			challenges = append(challenges, chals[i])
-			totalChallenges += 1
-			if totalChallenges%100 == 0 {
-				log.Infof("Loaded %d challenges", totalChallenges)
-			}
-		}
-	}
-
-	log.Debugf("found %d challenges for %s", len(challenges), address)
-	return challenges, nil
-}
-
 func getTxResults(address string, challenges []Challenges) ([]ChallengeResult, error) {
 	results := []ChallengeResult{}
 	for _, entry := range challenges {
@@ -225,7 +147,7 @@ func getTxResults(address string, challenges []Challenges) ([]ChallengeResult, e
 			}
 		}
 	}
-	log.Debugf("found %d Tx results for %s", len(results), address)
+	log.Debugf("Found %d Tx results for %s", len(results), address)
 	return results, nil
 }
 
@@ -252,13 +174,13 @@ func getRxResults(address string, challenges []Challenges) ([]ChallengeResult, e
 			}
 		}
 	}
-	log.Debugf("found %d Rx results for %s", len(results), address)
+	log.Debugf("Found %d Rx results for %s", len(results), address)
 	return results, nil
 }
 
-func getWitnessResults(address, witness string, challenges []Challenges) ([]WitnessResult, error) {
+func (b *BoltDB) getWitnessResults(address, witness string, challenges []Challenges) ([]WitnessResult, error) {
 	results := []WitnessResult{}
-	aHost, err := GetHotspot(address)
+	aHost, err := b.GetHotspot(address)
 	if err != nil {
 		return []WitnessResult{}, err
 	}
@@ -284,7 +206,7 @@ func getWitnessResults(address, witness string, challenges []Challenges) ([]Witn
 					continue
 				}
 
-				wHost, err := GetHotspot(witness)
+				wHost, err := b.GetHotspot(witness)
 				if err != nil {
 					log.WithError(err).Errorf("Unable to lookup: %s", witness)
 					continue
@@ -313,7 +235,7 @@ func getWitnessResults(address, witness string, challenges []Challenges) ([]Witn
 			}
 		}
 	}
-	log.Debugf("found %d witness results for %s<->%s", len(results), address, witness)
+	log.Debugf("Found %d witness results for %s<->%s", len(results), address, witness)
 	return results, nil
 }
 
@@ -364,59 +286,6 @@ func getSignalsSeriesChallenge(address string, results []ChallengeResult) ([]flo
 // generates a ton of output
 func printChallenges(challenges []Challenges) {
 	fmt.Printf(spew.Sdump(challenges))
-}
-
-// write the cache file
-func WriteChallenges(challenges []Challenges, filename, address string, start time.Time) error {
-	cache := ChallengeCache{
-		CacheTime:  time.Now().Unix(),
-		Address:    address,
-		StartDate:  start.Unix(),
-		Challenges: challenges,
-	}
-	b, err := json.MarshalIndent(cache, "", "  ")
-	if err != nil {
-		return err
-	}
-	return ioutil.WriteFile(filename, b, 0644)
-}
-
-// read the cache file
-func LoadChallenges(filename, address string, expires int64, start time.Time, forceCache bool) ([]Challenges, error) {
-	cache := ChallengeCache{}
-	bytes, err := ioutil.ReadFile(filename)
-	if err != nil {
-		return []Challenges{}, err
-	}
-	err = json.Unmarshal(bytes, &cache)
-
-	if err != nil {
-		return []Challenges{}, err
-	}
-	if !forceCache && cache.CacheTime+expires < time.Now().Unix() {
-		return []Challenges{}, fmt.Errorf("Challenge cache is old.")
-	}
-	recordTime := time.Unix(cache.StartDate, 0)
-	if start.Before(recordTime) {
-		return []Challenges{}, fmt.Errorf("Challenge cache wrong amount of time.")
-	}
-	if cache.Address != address {
-		return []Challenges{}, fmt.Errorf("Challenge cache is for different hotspot.")
-	}
-
-	// need to remove any records older than start time
-	challenges := []Challenges{}
-	for _, c := range cache.Challenges {
-		recordTime, err = c.GetTime()
-		if err != nil {
-			return []Challenges{}, err
-		}
-		if start.Before(recordTime) {
-			challenges = append(challenges, c)
-		}
-	}
-
-	return challenges, nil
 }
 
 // returns the highest nanosec block time less than or equal to the given height

@@ -19,23 +19,11 @@ package analysis
  */
 
 import (
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
-	"time"
 
 	"github.com/go-resty/resty/v2"
 	log "github.com/sirupsen/logrus"
 )
-
-type HotspotResponse struct {
-	Data Hotspot `json:"data"`
-}
-
-type HotspotsResponse struct {
-	Data   []Hotspot `json:"data"`
-	Cursor string    `json:"cursor"`
-}
 
 type HotspotCache struct {
 	Time     int64     `json:"time"`
@@ -64,8 +52,6 @@ type StatusType struct {
 
 const (
 	HOTSPOT_CACHE_TIMEOUT = 86400 // one day
-	HOTSPOT_URL           = "https://api.helium.io/v1/hotspots/%s"
-	HOTSPOTS_URL          = "https://api.helium.io/v1/hotspots"
 	HOTSPOT_CACHE_FILE    = "hotspots.json"
 )
 
@@ -111,99 +97,4 @@ func GetHotspotAddress(name string) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("Unable to find %s in hotspot cache", name)
-}
-
-// Loads our hotspots from the cachefile returns true if should be refreshed
-func LoadHotspots(filename string) (error, bool) {
-	file, err := ioutil.ReadFile(filename)
-	if err != nil {
-		return err, false
-	}
-	cache := HotspotCache{}
-	err = json.Unmarshal(file, &cache)
-	if err != nil {
-		return err, false
-	}
-
-	age := time.Now().Unix() - cache.Time
-	tooOld := false
-	if age > HOTSPOT_CACHE_TIMEOUT {
-		log.Warnf("Hotspot cache is %dhrs old.", age/60/60)
-		tooOld = true
-	}
-
-	for _, v := range cache.Hotspots {
-		HOTSPOT_CACHE[v.Address] = v
-	}
-	log.Debugf("Loaded hotspot cache")
-	return nil, tooOld
-
-}
-
-// Download hotspot data from helium.api servers and saves to filename
-func DownloadHotspots(filename string) error {
-	hotspots := []Hotspot{}
-	cursor := "" // keep track
-	client := resty.New()
-	first_time := true
-	last_size := 0
-
-	for first_time || cursor != "" {
-		hs, c, err := getHotspotResponse(client, cursor)
-		if err != nil {
-			return err
-		}
-		log.Debugf("Retrieved %d hotspots", len(hs))
-		cursor = c // keep track of the cursor for next time
-
-		hotspots = append(hotspots, hs...)
-		delta := len(hotspots) - last_size
-		if delta > 250 {
-			log.Infof("Loaded %d hotspots", len(hotspots))
-			last_size = len(hotspots)
-		}
-		first_time = false
-	}
-
-	log.Debugf("found %d hotspots", len(hotspots))
-	hs_cache := HotspotCache{
-		Time:     time.Now().Unix(),
-		Hotspots: hotspots,
-	}
-
-	jdata, err := json.MarshalIndent(hs_cache, "", "  ")
-	if err != nil {
-		return err
-	}
-	return ioutil.WriteFile(filename, jdata, 0644)
-}
-
-// Does the actual work of downloading Hotspot data
-func getHotspotResponse(client *resty.Client, cursor string) ([]Hotspot, string, error) {
-	var resp *resty.Response
-	var err error
-
-	if cursor == "" {
-		resp, err = client.R().
-			SetHeader("Accept", "application/json").
-			SetResult(&HotspotsResponse{}).
-			Get(HOTSPOTS_URL)
-	} else {
-		resp, err = client.R().
-			SetHeader("Accept", "application/json").
-			SetResult(&HotspotsResponse{}).
-			SetQueryParams(map[string]string{
-				"cursor": cursor,
-			}).
-			Get(HOTSPOTS_URL)
-	}
-	if err != nil {
-		return []Hotspot{}, "", err
-	}
-	if resp.IsError() {
-		return []Hotspot{}, "", fmt.Errorf("Error %d: %s", resp.StatusCode(), resp.String())
-	}
-	result := (resp.Result().(*HotspotsResponse))
-
-	return result.Data, result.Cursor, nil
 }
