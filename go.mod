@@ -8,6 +8,7 @@ require (
 	github.com/go-resty/resty/v2 v2.3.0
 	github.com/mattn/go-colorable v0.1.8
 	github.com/sirupsen/logrus v1.7.0
+	github.com/synfinatic/onelogin-aws-role v0.1.0 // indirect
 	github.com/umahmood/haversine v0.0.0-20151105152445-808ab04add26
 	github.com/wcharczuk/go-chart/v2 v2.1.0
 	go.etcd.io/bbolt v1.3.5

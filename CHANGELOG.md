@@ -1,9 +1,14 @@
 # Helium Analysis Changelog
 
-## Unreleased
+## v0.9.1 - 2021-04-25
 
 - Always generate JSON files for beacons & witnesses
 - Becaon & Witness JSON files now are limited to the data being graphed
+- `challenges list` command now does a pretty print
+- Add `challenges import` command 
+- Rename `challenges delete` to `challenges delete-all`
+- Add new `challenges delete` command 
+- Increase backoff against api.helium.io
 
 ## v0.9.0 - 2021-04-08
 

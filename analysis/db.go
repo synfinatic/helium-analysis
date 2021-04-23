@@ -40,7 +40,7 @@ var META_BUCKET []byte = []byte("metadata")
 var VERSION_KEY []byte = []byte("version")
 var DB_VERSION []byte = []byte("v1")
 
-const UTC_FORMAT = "2006-01-02 15:04:05 MST"
+const TIME_FORMAT = "2006-01-02 15:04:05 MST"
 
 type BoltDB struct {
 	db             *bolt.DB
@@ -364,7 +364,7 @@ func (b *BoltDB) LoadChallenges(address string, first, last time.Time, holddown 
 			bFirst := binary.BigEndian.Uint64(kFirst)
 			kFirstTime = time.Unix(int64(bFirst), 0).UTC()
 			log.Debugf("Database challenges: %s => %s",
-				kFirstTime.Format(UTC_FORMAT), kLastTime.Format(UTC_FORMAT))
+				kFirstTime.Format(TIME_FORMAT), kLastTime.Format(TIME_FORMAT))
 
 			// If the DB has challenges is +/- the holddown, then we're "good enough"
 			// Note that this is the _challenge time_ not the last time we ran `refresh`
@@ -376,11 +376,11 @@ func (b *BoltDB) LoadChallenges(address string, first, last time.Time, holddown 
 				log.Infof("No entries in database....")
 			} else if kFirstTime.After(firstSearch) {
 				loadUntil = first.Add(-holddown)
-				t := firstSearch.Format(UTC_FORMAT)
+				t := firstSearch.Format(TIME_FORMAT)
 				log.Infof("First database record is after %s", t)
 			} else if kLastTime.Before(lastSearch) {
-				loadUntil = lastSearch
-				t := lastSearch.Format(UTC_FORMAT)
+				loadUntil = kLastTime.Add(-holddown)
+				t := lastSearch.Format(TIME_FORMAT)
 				log.Infof("Last database record is before %s", t)
 			}
 
@@ -392,7 +392,7 @@ func (b *BoltDB) LoadChallenges(address string, first, last time.Time, holddown 
 			// load all the data for the graph
 			loadUntil = first.Add(-holddown)
 		}
-		log.Debugf("Loading challenges until: %s", loadUntil.Format(UTC_FORMAT))
+		log.Debugf("Loading challenges until: %s", loadUntil.Format(TIME_FORMAT))
 
 		// load everything we need from the API
 		challenges, err := FetchChallenges(address, loadUntil)

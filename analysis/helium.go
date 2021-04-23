@@ -27,9 +27,11 @@ import (
 )
 
 const (
-	HOTSPOT_URL  = "https://api.helium.io/v1/hotspots/%s"
-	HOTSPOTS_URL = "https://api.helium.io/v1/hotspots"
-	HEIGHT_URL   = "https://api.helium.io/v1/blocks/height"
+	HOTSPOT_URL    = "https://api.helium.io/v1/hotspots/%s"
+	HOTSPOTS_URL   = "https://api.helium.io/v1/hotspots"
+	HEIGHT_URL     = "https://api.helium.io/v1/blocks/height"
+	CHALLENGE_URL  = "https://api.helium.io/v1/hotspots/%s/challenges"
+	RETRY_ATTEMPTS = 10
 )
 
 type HotspotResponse struct {
@@ -106,15 +108,15 @@ func FetchChallenges(address string, start time.Time) ([]Challenges, error) {
 	cursor := "" // keep track
 	client := resty.New()
 	loadMoreRecords := true
-	attempts := 10
+	attempt := 0
 
 	for loadMoreRecords {
 		chals, c, err := getChallengeResponse(client, address, cursor)
-		if err != nil && attempts > 0 {
-			log.Errorf("Error from server.  Backing off attempt %d and trying again...", attempts)
+		if err != nil && attempt < RETRY_ATTEMPTS {
+			attempt += 1
+			log.Errorf("Error from server.  Backing off attempt %d and trying again...", attempt)
 			log.Debugf("%s", err)
-			attempts -= 1
-			time.Sleep(time.Duration(1500) * time.Millisecond) // back off 1.5 secs
+			time.Sleep(time.Duration(1500*attempt) * time.Millisecond) // back off 1.5 secs
 			continue
 		} else if err != nil {
 			return []Challenges{}, fmt.Errorf("Unable to load challenges: %s", err)
@@ -146,7 +148,7 @@ func FetchChallenges(address string, start time.Time) ([]Challenges, error) {
 				if err != nil {
 					log.WithError(err).Errorf("Unable to determine time")
 				} else {
-					log.Infof("Last challenge time: %s", t.Format(UTC_FORMAT))
+					log.Infof("Last challenge time: %s", t.Format(TIME_FORMAT))
 				}
 			}
 			time.Sleep(time.Duration(750) * time.Millisecond) // sleep 750ms between calls
@@ -168,6 +170,7 @@ func getHotspotResponse(client *resty.Client, cursor string) ([]Hotspot, string,
 			SetResult(&HotspotsResponse{}).
 			Get(HOTSPOTS_URL)
 	} else {
+		log.Debugf("Helium API Cursor: %s", cursor)
 		resp, err = client.R().
 			SetHeader("Accept", "application/json").
 			SetResult(&HotspotsResponse{}).
@@ -198,6 +201,7 @@ func getChallengeResponse(client *resty.Client, address string, cursor string) (
 			SetResult(&ChallengeResponse{}).
 			Get(fmt.Sprintf(CHALLENGE_URL, address))
 	} else {
+		log.Debugf("Helium API Cursor: %s", cursor)
 		resp, err = client.R().
 			SetHeader("Accept", "application/json").
 			SetResult(&ChallengeResponse{}).
