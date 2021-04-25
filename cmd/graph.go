@@ -65,8 +65,8 @@ func (cmd *GraphCmd) Run(ctx *RunContext) error {
 	if err != nil {
 		return err
 	}
-	log.Debugf("Graph range: %s => %s", firstTime.Format(analysis.UTC_FORMAT),
-		lastTime.Format(analysis.UTC_FORMAT))
+	log.Debugf("Graph range: %s => %s", firstTime.Format(analysis.TIME_FORMAT),
+		lastTime.Format(analysis.TIME_FORMAT))
 
 	// Is this a name or address of a hotspot?  Set `hotspotAddress`
 	hotspotAddress, err := ctx.BoltDB.GetHotspotByUnknown(cli.Graph.Address)

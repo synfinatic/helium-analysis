@@ -122,8 +122,6 @@ type WitnessResult struct {
 	Hash           string  `json:"hash"`
 }
 
-const CHALLENGE_URL = "https://api.helium.io/v1/hotspots/%s/challenges"
-
 func getTxResults(address string, challenges []Challenges) ([]ChallengeResult, error) {
 	results := []ChallengeResult{}
 	for _, entry := range challenges {
