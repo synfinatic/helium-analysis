@@ -31,6 +31,7 @@ var Version = "unknown"
 var Buildinfos = "unknown"
 var Tag = "NO-TAG"
 var CommitID = "unknown"
+var Delta = ""
 
 const (
 	CHALLENGES_CACHE_EXPIRES = 1 // 1 hr
@@ -101,8 +102,13 @@ func main() {
 type VersionCmd struct{}
 
 func (cmd *VersionCmd) Run(ctx *RunContext) error {
+	delta := ""
+	if len(Delta) > 0 {
+		delta = fmt.Sprintf(" [%s delta]", Delta)
+		Tag = "Unknown"
+	}
 	fmt.Printf("Helium Analysis v%s -- Copyright 2021 Aaron Turner\n", Version)
-	fmt.Printf("%s (%s) built at %s\n", CommitID, Tag, Buildinfos)
+	fmt.Printf("%s (%s)%s built at %s\n", CommitID, Tag, delta, Buildinfos)
 	fmt.Printf("\nIf you find this useful, please donate a few HNT to:\n")
 	fmt.Printf("144xaKFbp4arCNWztcDbB8DgWJFCZxc8AtAKuZHZ6Ejew44wL8z")
 	return nil
