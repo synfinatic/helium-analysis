@@ -1,5 +1,9 @@
 # Helium Analysis Changelog
 
+## v0.9.2 - 2021-12-04
+
+- Add retry logic for when API servers are too busy
+
 ## v0.9.1 - 2021-04-25
 
 - Always generate JSON files for beacons & witnesses

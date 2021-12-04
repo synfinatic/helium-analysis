@@ -21,7 +21,6 @@ package analysis
 import (
 	"fmt"
 
-	"github.com/go-resty/resty/v2"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -67,7 +66,8 @@ func GetHotspot(address string) (Hotspot, error) {
 		log.Debugf("cache miss: %s", address)
 	}
 
-	client := resty.New()
+	client := NewRestyClient()
+
 	resp, err := client.R().
 		SetHeader("Accept", "application/json").
 		SetResult(&HotspotResponse{}).
