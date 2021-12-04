@@ -19,7 +19,9 @@ package analysis
  */
 
 import (
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/go-resty/resty/v2"
@@ -47,12 +49,43 @@ type HeightResponse struct {
 	Data map[string]int64 `json:"data"`
 }
 
+type TooBusyError struct {
+	Error    string        `json:"error"`
+	ComeBack time.Duration `json:"come_back_in_ms"`
+}
+
+// retry function for 429 errors from Helium API servers
+func heliumApiRetry(client *resty.Client, resp *resty.Response) (time.Duration, error) {
+	if resp.StatusCode() == http.StatusTooManyRequests {
+		tooBusy := TooBusyError{}
+		if err := json.Unmarshal([]byte(resp.String()), &tooBusy); err != nil {
+			return 0, err
+		}
+		if tooBusy.Error == "Too Busy" {
+			log.Infof("Server is too busy. Asked to wait %dms.", tooBusy.ComeBack)
+			return time.Duration(tooBusy.ComeBack / 10 * time.Millisecond), nil
+		}
+	}
+	log.Errorf("Using default 5sec delay.  error was: %d: %s", resp.StatusCode(), resp.String())
+	return time.Duration(5 * time.Second), nil
+}
+
+func NewRestyClient() *resty.Client {
+	client := resty.New()
+	client.SetRetryCount(3).SetRetryAfter(heliumApiRetry).AddRetryCondition(
+		func(r *resty.Response, err error) bool {
+			return r.StatusCode() == http.StatusTooManyRequests // 429
+		},
+	).SetRetryMaxWaitTime(time.Duration(10 * time.Second))
+	return client
+}
+
 // Gets the current height of the blockchain
 func GetCurrentHeight() (int64, error) {
 	var resp *resty.Response
 	var err error
 
-	client := resty.New()
+	client := NewRestyClient()
 	resp, err = client.R().
 		SetHeader("Accept", "application/json").
 		SetResult(&HeightResponse{}).
@@ -75,9 +108,10 @@ func GetCurrentHeight() (int64, error) {
 func FetchHotspots() ([]Hotspot, error) {
 	hotspots := []Hotspot{}
 	cursor := "" // keep track
-	client := resty.New()
 	first_time := true
 	last_size := 0
+
+	client := NewRestyClient()
 
 	for first_time || cursor != "" {
 		hs, c, err := getHotspotResponse(client, cursor)
@@ -106,9 +140,10 @@ func FetchChallenges(address string, start time.Time) ([]Challenges, error) {
 	challenges := []Challenges{}
 	totalChallenges := 0
 	cursor := "" // keep track
-	client := resty.New()
 	loadMoreRecords := true
 	attempt := 0
+
+	client := NewRestyClient()
 
 	for loadMoreRecords {
 		chals, c, err := getChallengeResponse(client, address, cursor)
@@ -185,6 +220,7 @@ func getHotspotResponse(client *resty.Client, cursor string) ([]Hotspot, string,
 	if resp.IsError() {
 		return []Hotspot{}, "", fmt.Errorf("Error %d: %s", resp.StatusCode(), resp.String())
 	}
+
 	result := (resp.Result().(*HotspotsResponse))
 
 	return result.Data, result.Cursor, nil
