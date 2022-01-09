@@ -1,6 +1,6 @@
 # Helium Analysis Changelog
 
-## Unreleased
+## v0.9.3 - 2022-01-09
 
 - Fix handling challenge cursors with new hotspots 
 - Improve performance querying challenges
