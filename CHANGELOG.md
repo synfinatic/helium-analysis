@@ -1,5 +1,10 @@
 # Helium Analysis Changelog
 
+## Unreleased
+
+- Fix handling challenge cursors with new hotspots 
+- Improve performance querying challenges
+
 ## v0.9.2 - 2021-12-04
 
 - Add retry logic for when API servers are too busy
