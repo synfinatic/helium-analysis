@@ -29,6 +29,12 @@ import (
 )
 
 const (
+	/*
+		HOTSPOT_URL    = "https://helium-api.stakejoy.com/v1/hotspots/%s"
+		HOTSPOTS_URL   = "https://helium-api.stakejoy.com/v1/hotspots"
+		HEIGHT_URL     = "https://helium-api.stakejoy.com/v1/blocks/height"
+		CHALLENGE_URL  = "https://helium-api.stakejoy.com/v1/hotspots/%s/challenges"
+	*/
 	HOTSPOT_URL    = "https://api.helium.io/v1/hotspots/%s"
 	HOTSPOTS_URL   = "https://api.helium.io/v1/hotspots"
 	HEIGHT_URL     = "https://api.helium.io/v1/blocks/height"
@@ -142,6 +148,7 @@ func FetchChallenges(address string, start time.Time) ([]Challenges, error) {
 	cursor := "" // keep track
 	loadMoreRecords := true
 	attempt := 0
+	lastChallengeCount := -1
 
 	client := NewRestyClient()
 
@@ -159,11 +166,25 @@ func FetchChallenges(address string, start time.Time) ([]Challenges, error) {
 			// sometimes we get 0 results, but a cursor for "more"
 			return []Challenges{}, fmt.Errorf("0 challenges fetched for %s.  Invalid address?", address)
 		} else if len(chals) == 0 && c == "" {
+			// this is our exit
 			log.Warnf("Only able to retrieve %d challenges", totalChallenges)
 			return challenges, nil
+		} else if c == "" {
+			log.Debugf("API server returned no cursor in response!  No more queries.")
+			loadMoreRecords = false
 		}
 
-		cursor = c // keep track of the cursor for next time
+		if c != "" {
+			// sometimes the API returns an empty cursor after we got one.
+			// if we zero it out, we'll start over!
+			log.Debugf("New cursor: %s => %s", cursor, c)
+			cursor = c // keep track of the cursor for next time
+		} else if c == cursor && lastChallengeCount == len(chals) {
+			log.Warnf("API server returned the same cursor & result set as last time!")
+			continue
+		}
+		lastChallengeCount = len(chals)
+		log.Debugf("retreived %d challenges", len(chals))
 
 		for i := 0; i < len(chals); i++ {
 			challengeTime, err := chals[i].GetTime()
@@ -178,19 +199,19 @@ func FetchChallenges(address string, start time.Time) ([]Challenges, error) {
 			challenges = append(challenges, chals[i])
 			totalChallenges += 1
 			if totalChallenges%100 == 0 {
-				log.Infof("Loaded %d challenges", totalChallenges)
 				t, err := chals[i].GetTime()
 				if err != nil {
-					log.WithError(err).Errorf("Unable to determine time")
+					log.WithError(err).Fatalf("Unable to determine time")
 				} else {
-					log.Infof("Last challenge time: %s", t.Format(TIME_FORMAT))
+					log.Infof("Retrieved %d challenges, last challenge time: %s",
+						totalChallenges, t.Format(TIME_FORMAT))
 				}
 			}
-			time.Sleep(time.Duration(750) * time.Millisecond) // sleep 750ms between calls
 		}
+		time.Sleep(time.Duration(750) * time.Millisecond) // sleep 750ms between calls
 	}
 
-	log.Debugf("found %d challenges for %s", len(challenges), address)
+	log.Infof("Found %d challenges for %s", len(challenges), address)
 	return challenges, nil
 }
 
@@ -200,12 +221,13 @@ func getHotspotResponse(client *resty.Client, cursor string) ([]Hotspot, string,
 	var err error
 
 	if cursor == "" {
+		log.Debugf("First Hotspot Helium API request (no cursor)")
 		resp, err = client.R().
 			SetHeader("Accept", "application/json").
 			SetResult(&HotspotsResponse{}).
 			Get(HOTSPOTS_URL)
 	} else {
-		log.Debugf("Helium API Cursor: %s", cursor)
+		log.Debugf("Using Hotspot Helium API Cursor: %s", cursor)
 		resp, err = client.R().
 			SetHeader("Accept", "application/json").
 			SetResult(&HotspotsResponse{}).
@@ -232,12 +254,13 @@ func getChallengeResponse(client *resty.Client, address string, cursor string) (
 	var err error
 
 	if cursor == "" {
+		log.Debugf("First Challenge Helium API request (no cursor)")
 		resp, err = client.R().
 			SetHeader("Accept", "application/json").
 			SetResult(&ChallengeResponse{}).
 			Get(fmt.Sprintf(CHALLENGE_URL, address))
 	} else {
-		log.Debugf("Helium API Cursor: %s", cursor)
+		log.Debugf("Using Challenge Helium API Cursor: %s", cursor)
 		resp, err = client.R().
 			SetHeader("Accept", "application/json").
 			SetResult(&ChallengeResponse{}).
