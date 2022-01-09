@@ -2,7 +2,7 @@ package main
 
 /*
  * Helium Analysis
- * Copyright (c) 2021 Aaron Turner  <aturner at synfin dot net>
+ * Copyright (c) 2021-2022 Aaron Turner  <aturner at synfin dot net>
  *
  * This program is free software: you can redistribute it
  * and/or modify it under the terms of the GNU General Public License as
@@ -107,7 +107,7 @@ func (cmd *VersionCmd) Run(ctx *RunContext) error {
 		delta = fmt.Sprintf(" [%s delta]", Delta)
 		Tag = "Unknown"
 	}
-	fmt.Printf("Helium Analysis v%s -- Copyright 2021 Aaron Turner\n", Version)
+	fmt.Printf("Helium Analysis v%s -- Copyright 2021-2022 Aaron Turner\n", Version)
 	fmt.Printf("%s (%s)%s built at %s\n", CommitID, Tag, delta, Buildinfos)
 	fmt.Printf("\nIf you find this useful, please donate a few HNT to:\n")
 	fmt.Printf("144xaKFbp4arCNWztcDbB8DgWJFCZxc8AtAKuZHZ6Ejew44wL8z")
